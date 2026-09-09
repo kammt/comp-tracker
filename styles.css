@@ -7,7 +7,7 @@ button, input, textarea { font: inherit; }
 button { cursor: pointer; }
 .app-shell { width: min(100% - 32px, 880px); margin: 0 auto; padding: 24px 0 48px; }
 .view { animation: enter .35s ease-out both; }
-.intro-mark { color: var(--mint-strong); font: 700 5rem/1 'Space Grotesk', sans-serif; letter-spacing: -.08em; }
+.intro-mark { display: block; width: 72px; height: 72px; margin-bottom: 28px; border-radius: 16px; }
 .eyebrow { color: var(--mint-strong); font-size: .72rem; font-weight: 700; letter-spacing: .14em; margin: 0 0 8px; }
 h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; letter-spacing: -.04em; line-height: 1.05; margin: 0; }
 h1 { font-size: clamp(2.5rem, 10vw, 5.4rem); max-width: 700px; }

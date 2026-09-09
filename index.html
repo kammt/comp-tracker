@@ -13,16 +13,16 @@
   <body>
     <main class="app-shell">
       <section id="setup-view" class="view" aria-labelledby="setup-title" hidden>
-        <div class="intro-mark" aria-hidden="true">01</div>
+        <img class="intro-mark" src="icon.svg" alt="" aria-hidden="true" />
         <p class="eyebrow">CompTracker</p>
-        <h1 id="setup-title">Keep an eye on your people.</h1>
+        <h1 id="setup-title">Keep an eye on your friends.</h1>
         <p class="lede">Save an event once, then pull the latest heats and rounds whenever you need them.</p>
         <form id="setup-form" class="stack-form">
           <label for="event-id">Event ID</label>
           <input id="event-id" name="eventId" inputmode="numeric" pattern="[0-9]+" placeholder="e.g. 393" required />
           <label for="watch-list">People to watch</label>
-          <textarea id="watch-list" name="watchList" rows="5" placeholder="One bib number per line." required></textarea>
-          <p class="field-note">Names and bib numbers are sent exactly as entered to scoring.dance.</p>
+          <textarea id="watch-list" name="watchList" rows="5" inputmode="numeric" placeholder="One bib number per line." required></textarea>
+          <p class="field-note">Bib numbers are sent exactly as entered to scoring.dance. Names are not supported.</p>
           <button class="button button-primary" type="submit">Start tracking <span aria-hidden="true">→</span></button>
         </form>
       </section>
@@ -38,6 +38,7 @@
           </button>
         </header>
         <div id="status-banner" class="status-banner" role="status" hidden></div>
+        <p class="field-note refresh-note">Results do not refresh automatically. Use the refresh button to fetch the latest updates.</p>
         <section id="results" class="results" aria-live="polite"></section>
         <section class="dashboard-actions" aria-label="Manage watch list">
           <button id="add-person-button" class="button button-secondary" type="button"><span aria-hidden="true">＋</span> Add person</button>
@@ -50,7 +51,7 @@
       <form id="add-form" method="dialog" class="stack-form">
         <div class="dialog-heading"><div><p class="eyebrow">WATCH LIST</p><h2>Add a person</h2></div><button id="close-add-dialog" class="close-button" type="button" aria-label="Close">×</button></div>
         <label for="person-query">Bib number</label>
-        <input id="person-query" name="personQuery" required autocomplete="off" />
+        <input id="person-query" name="personQuery" inputmode="numeric" pattern="[0-9]+" required autocomplete="off" />
         <button class="button button-primary" value="default" type="submit">Add person</button>
       </form>
     </dialog>

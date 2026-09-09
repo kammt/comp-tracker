@@ -63,6 +63,14 @@ function parseWatchList(value) {
   return [...new Set(value.split(/[\n,]+/).map(normalizeQuery).filter(Boolean))];
 }
 
+function keepBibNumbersOnly(event) {
+  event.target.value = event.target.value.replace(/[^\d\n]/g, '');
+}
+
+function keepDigitsOnly(event) {
+  event.target.value = event.target.value.replace(/\D/g, '');
+}
+
 function textOf(element) {
   return element ? element.textContent.replace(/\s+/g, ' ').trim() : '';
 }
@@ -216,6 +224,9 @@ elements.setupForm.addEventListener('submit', (event) => {
   openDashboard();
   refreshResults();
 });
+
+elements.watchList.addEventListener('input', keepBibNumbersOnly);
+elements.personQuery.addEventListener('input', keepDigitsOnly);
 
 elements.refresh.addEventListener('click', refreshResults);
 elements.addButton.addEventListener('click', openAddDialog);
