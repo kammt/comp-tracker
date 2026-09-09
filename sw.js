@@ -1,4 +1,4 @@
-const CACHE = 'competition-companion-v1';
+const CACHE = 'comptracker-v1';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', (event) => {

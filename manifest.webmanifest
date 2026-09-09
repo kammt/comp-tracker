@@ -1,6 +1,6 @@
 {
-  "name": "Competition Companion",
-  "short_name": "Companion",
+  "name": "CompTracker",
+  "short_name": "CompTracker",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#f7f7f2",

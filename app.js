@@ -1,5 +1,5 @@
 // All app state lives in one localStorage record so a reload never loses the event.
-const STORAGE_KEY = 'competition-companion-state';
+const STORAGE_KEY = 'comptracker-state';
 const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 
 const elements = {
