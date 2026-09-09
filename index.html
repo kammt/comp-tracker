@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#12231f" />
+    <meta name="description" content="A quiet, offline-friendly dashboard for dance competition results." />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+    <title>Companion | Dance results tracker</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section id="setup-view" class="view" aria-labelledby="setup-title" hidden>
+        <div class="intro-mark" aria-hidden="true">01</div>
+        <p class="eyebrow">COMPETITION COMPANION</p>
+        <h1 id="setup-title">Keep an eye on your people.</h1>
+        <p class="lede">Save an event once, then pull the latest heats and rounds whenever you need them.</p>
+        <form id="setup-form" class="stack-form">
+          <label for="event-id">Event ID</label>
+          <input id="event-id" name="eventId" inputmode="numeric" pattern="[0-9]+" placeholder="e.g. 393" required />
+          <label for="watch-list">People to watch</label>
+          <textarea id="watch-list" name="watchList" rows="5" placeholder="One bib number per line." required></textarea>
+          <p class="field-note">Names and bib numbers are sent exactly as entered to scoring.dance.</p>
+          <button class="button button-primary" type="submit">Start tracking <span aria-hidden="true">→</span></button>
+        </form>
+      </section>
+
+      <section id="dashboard-view" class="view" aria-labelledby="dashboard-title" hidden>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">LIVE EVENT <span id="event-label"></span></p>
+            <h1 id="dashboard-title">Competition watch</h1>
+          </div>
+          <button id="refresh-button" class="icon-button" type="button" aria-label="Refresh results" title="Refresh results">
+            <span aria-hidden="true">↻</span>
+          </button>
+        </header>
+        <div id="status-banner" class="status-banner" role="status" hidden></div>
+        <section id="results" class="results" aria-live="polite"></section>
+        <section class="dashboard-actions" aria-label="Manage watch list">
+          <button id="add-person-button" class="button button-secondary" type="button"><span aria-hidden="true">＋</span> Add person</button>
+          <button id="reset-button" class="button button-danger" type="button">Reset event</button>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="add-dialog" class="dialog">
+      <form id="add-form" method="dialog" class="stack-form">
+        <div class="dialog-heading"><div><p class="eyebrow">WATCH LIST</p><h2>Add a person</h2></div><button id="close-add-dialog" class="close-button" type="button" aria-label="Close">×</button></div>
+        <label for="person-query">Bib number</label>
+        <input id="person-query" name="personQuery" required autocomplete="off" />
+        <button class="button button-primary" value="default" type="submit">Add person</button>
+      </form>
+    </dialog>
+    <dialog id="confirm-dialog" class="dialog">
+      <form id="confirm-form" method="dialog" class="stack-form">
+        <div class="dialog-heading"><div><p class="eyebrow">START OVER</p><h2 id="confirm-title">Reset this event?</h2></div><button id="close-confirm-dialog" class="close-button" type="button" aria-label="Close">×</button></div>
+        <p id="confirm-copy" class="dialog-copy">This removes the saved event, watch list, and cached results from this device.</p>
+        <div class="dialog-actions"><button class="button button-secondary" value="cancel">Keep it</button><button id="confirm-reset" class="button button-danger" value="confirm">Reset everything</button></div>
+      </form>
+    </dialog>
+    <script src="app.js" defer></script>
+  </body>
+</html>
