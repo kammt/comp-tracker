@@ -127,13 +127,13 @@ async function fetchParticipant(eventId, query) {
   const search = new URLSearchParams({ q: query });
   const target = `https://scoring.dance/enUS/events/${encodeURIComponent(eventId)}/wall?${search}`;
   try {
-    const response = await fetch(target, { headers: { Accept: 'text/html' } });
+    const response = await fetch(target, { cache: 'no-store', headers: { Accept: 'text/html' } });
     if (!response.ok) throw new Error(`scoring.dance returned ${response.status}`);
     return parseParticipant(await response.text(), query);
   } catch (directError) {
     // GitHub Pages cannot proxy cross-origin HTML. The fallback keeps the app usable
     // when scoring.dance does not expose CORS headers, while preserving a direct request first.
-    const response = await fetch(`${CORS_PROXY}${encodeURIComponent(target)}`);
+    const response = await fetch(`${CORS_PROXY}${encodeURIComponent(target)}`, { cache: 'no-store' });
     if (!response.ok) throw directError;
     return parseParticipant(await response.text(), query);
   }
@@ -143,6 +143,7 @@ function sameParticipant(previous, next) {
   const comparable = (participant) => JSON.stringify({
     query: participant.query,
     name: participant.name,
+    eventTitle: participant.eventTitle,
     competitions: participant.competitions,
   });
   return comparable(previous) === comparable(next);
