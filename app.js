@@ -102,7 +102,7 @@ function parseEventTitle(html) {
   const documentFragment = new DOMParser().parseFromString(html, 'text/html');
   const eventHeading = documentFragment.querySelector('main h1');
   const eventTitle = textOf(eventHeading).replace(/\s*(?:-|:)\s*marshalling lists.*$/i, '').trim();
-  if (!eventTitle) throw new Error('No event found for that ID.');
+  if (!eventTitle || /^404\b/i.test(eventTitle) || /^not found$/i.test(eventTitle)) throw new Error('No event found for that ID.');
   return eventTitle;
 }
 
@@ -138,7 +138,7 @@ async function fetchParticipant(eventId, query) {
     // when scoring.dance does not expose CORS headers, while preserving a direct request first.
     response = await fetch(`${CORS_PROXY}${encodeURIComponent(target)}`, { cache: 'no-store' });
   }
-  if (!response.ok) throw new Error(`scoring.dance returned ${response.status}`);
+  if (!response.ok) throw new Error(`scoring.dance returned error code ${response.status}`);
   return parseParticipant(await response.text(), query, eventId);
 }
 
