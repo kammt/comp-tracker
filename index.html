@@ -8,7 +8,7 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
-    <title>CompTracker | Dance results tracker</title>
+    <title>CompTracker | WCS comp results tracker</title>
   </head>
   <body>
     <main class="app-shell">
@@ -16,15 +16,19 @@
         <img class="intro-mark" src="icon.svg" alt="" aria-hidden="true" />
         <p class="eyebrow">CompTracker</p>
         <h1 id="setup-title">Keep an eye on your friends.</h1>
-        <p class="lede">Save an event once, then pull the latest heats and rounds whenever you need them.</p>
+        <p class="lede">Save an event once, then pull the latest results whenever you need them.</p>
         <form id="setup-form" class="stack-form">
           <label for="event-id">Event ID</label>
           <input id="event-id" name="eventId" inputmode="numeric" pattern="[0-9]+" placeholder="e.g. 393" required />
-          <label for="watch-list">People to watch</label>
-          <textarea id="watch-list" name="watchList" rows="5" placeholder="One bib number per line." required></textarea>
-          <p class="field-note">Bib numbers are sent exactly as entered to scoring.dance. Names are not supported.</p>
-          <button class="button button-primary" type="submit">Start tracking <span aria-hidden="true">→</span></button>
+          <button class="button button-primary" type="submit">Find event <span aria-hidden="true">→</span></button>
         </form>
+        <p class="setup-help"><button id="event-id-help" class="text-button" type="button">Where do I find the event ID?</button></p>
+        <section id="event-preview" class="event-preview" hidden aria-live="polite">
+          <p class="eyebrow">EVENT FOUND</p>
+          <h2 id="event-preview-title"></h2>
+          <p class="field-note">Continue to open this event. You can add people to watch from the results page.</p>
+          <button id="continue-button" class="button button-primary" type="button">Continue <span aria-hidden="true">→</span></button>
+        </section>
       </section>
 
       <section id="dashboard-view" class="view" aria-labelledby="dashboard-title" hidden>
@@ -53,6 +57,13 @@
         <label for="person-query">Bib number</label>
         <input id="person-query" name="personQuery" inputmode="numeric" pattern="[0-9]+" required autocomplete="off" />
         <button class="button button-primary" value="default" type="submit">Add person</button>
+      </form>
+    </dialog>
+    <dialog id="event-id-dialog" class="dialog">
+      <form method="dialog" class="stack-form">
+        <div class="dialog-heading"><div><p class="eyebrow">EVENT ID</p><h2>Where to find it</h2></div><button class="close-button" type="submit" aria-label="Close">×</button></div>
+        <p class="dialog-copy">The event ID is the number in the event page URL on scoring.dance. For example, in <strong>scoring.dance/enUS/events/393/wall</strong>, the event ID is <strong>393</strong>.</p>
+        <button class="button button-primary" type="submit">Got it</button>
       </form>
     </dialog>
     <dialog id="confirm-dialog" class="dialog">

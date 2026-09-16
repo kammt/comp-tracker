@@ -18,6 +18,11 @@ label { font-size: .85rem; font-weight: 700; margin-top: 8px; }
 input, textarea { width: 100%; color: var(--ink); background: rgba(255,255,255,.8); border: 1px solid var(--line); border-radius: 10px; padding: 13px 14px; outline: 0; resize: vertical; }
 input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 0 3px rgba(22,131,92,.13); }
 .field-note, .dialog-copy { color: var(--muted); font-size: .85rem; margin: 0 0 8px; }
+.setup-help { margin: 18px 0 0; }
+.text-button { padding: 0; color: var(--mint-strong); background: transparent; border: 0; text-decoration: underline; text-underline-offset: 3px; }
+.event-preview { max-width: 560px; margin-top: 34px; padding-top: 24px; border-top: 1px solid var(--line); }
+.event-preview h2 { margin-bottom: 12px; }
+.event-preview .button { margin-top: 8px; }
 .button { border: 0; border-radius: 10px; padding: 13px 16px; font-weight: 700; transition: transform .15s, box-shadow .15s, background .15s; }
 .button:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(23,35,31,.12); }
 .button-primary { color: var(--ink); background: var(--mint); }

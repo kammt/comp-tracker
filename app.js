@@ -7,7 +7,11 @@ const elements = {
   dashboard: document.querySelector('#dashboard-view'),
   setupForm: document.querySelector('#setup-form'),
   eventId: document.querySelector('#event-id'),
-  watchList: document.querySelector('#watch-list'),
+  eventPreview: document.querySelector('#event-preview'),
+  eventPreviewTitle: document.querySelector('#event-preview-title'),
+  continueButton: document.querySelector('#continue-button'),
+  eventIdHelp: document.querySelector('#event-id-help'),
+  eventIdDialog: document.querySelector('#event-id-dialog'),
   eventLabel: document.querySelector('#event-label'),
   eventTitle: document.querySelector('#event-title'),
   results: document.querySelector('#results'),
@@ -28,6 +32,7 @@ const elements = {
 };
 
 let state = readState();
+let pendingEvent = null;
 let pendingRemoval = null;
 let changedIndicatorTimer = null;
 
@@ -59,14 +64,6 @@ function normalizeQuery(value) {
   return value.trim().replace(/\s+/g, ' ');
 }
 
-function parseWatchList(value) {
-  return [...new Set(value.split(/[\n,]+/).map(normalizeQuery).filter(Boolean))];
-}
-
-function keepBibNumbersOnly(event) {
-  event.target.value = event.target.value.replace(/[^\d\n]/g, '');
-}
-
 function keepDigitsOnly(event) {
   event.target.value = event.target.value.replace(/\D/g, '');
 }
@@ -75,10 +72,10 @@ function textOf(element) {
   return element ? element.textContent.replace(/\s+/g, ' ').trim() : '';
 }
 
-function parseParticipant(html, query) {
+function parseParticipant(html, query, eventId) {
   const documentFragment = new DOMParser().parseFromString(html, 'text/html');
   const card = [...documentFragment.querySelectorAll('.card')].find((candidate) => /Competitor information/i.test(textOf(candidate)));
-  if (!card) throw new Error(`No competitor card found for “${query}”.`);
+  if (!card) throw new Error(`Bib number ${query} does not exist in event ${eventId}.`);
 
   const body = card.querySelector('.card-body') || card;
   const name = textOf(body.querySelector('table td')) || query;
@@ -97,9 +94,15 @@ function parseParticipant(html, query) {
     return competition;
   });
 
+  return { query, name, competitions };
+}
+
+function parseEventTitle(html) {
+  const documentFragment = new DOMParser().parseFromString(html, 'text/html');
   const eventHeading = documentFragment.querySelector('main h1');
   const eventTitle = textOf(eventHeading).replace(/\s*(?:-|:)\s*marshalling lists.*$/i, '').trim();
-  return { query, name, competitions, eventTitle };
+  if (!eventTitle) throw new Error('No event found for that ID.');
+  return eventTitle;
 }
 
 function getCompetitionText(heading) {
@@ -126,16 +129,29 @@ function parseRound(roundElement) {
 async function fetchParticipant(eventId, query) {
   const search = new URLSearchParams({ q: query });
   const target = `https://scoring.dance/enUS/events/${encodeURIComponent(eventId)}/wall?${search}`;
+  let response;
   try {
-    const response = await fetch(target, { cache: 'no-store', headers: { Accept: 'text/html' } });
+    response = await fetch(target, { cache: 'no-store', headers: { Accept: 'text/html' } });
     if (!response.ok) throw new Error(`scoring.dance returned ${response.status}`);
-    return parseParticipant(await response.text(), query);
   } catch (directError) {
     // GitHub Pages cannot proxy cross-origin HTML. The fallback keeps the app usable
     // when scoring.dance does not expose CORS headers, while preserving a direct request first.
+    response = await fetch(`${CORS_PROXY}${encodeURIComponent(target)}`, { cache: 'no-store' });
+    if (!response.ok) throw directError;
+  }
+  return parseParticipant(await response.text(), query, eventId);
+}
+
+async function fetchEvent(eventId) {
+  const target = `https://scoring.dance/enUS/events/${encodeURIComponent(eventId)}/wall`;
+  try {
+    const response = await fetch(target, { cache: 'no-store', headers: { Accept: 'text/html' } });
+    if (!response.ok) throw new Error(`scoring.dance returned ${response.status}`);
+    return parseEventTitle(await response.text());
+  } catch (directError) {
     const response = await fetch(`${CORS_PROXY}${encodeURIComponent(target)}`, { cache: 'no-store' });
     if (!response.ok) throw directError;
-    return parseParticipant(await response.text(), query);
+    return parseEventTitle(await response.text());
   }
 }
 
@@ -143,7 +159,6 @@ function sameParticipant(previous, next) {
   const comparable = (participant) => JSON.stringify({
     query: participant.query,
     name: participant.name,
-    eventTitle: participant.eventTitle,
     competitions: participant.competitions,
   });
   return comparable(previous) === comparable(next);
@@ -169,9 +184,6 @@ async function refreshResults() {
   });
   state.results = results;
   state.changedCount = changedCount;
-  const fetchedTitle = results.find((result) => result.eventTitle)?.eventTitle;
-  if (fetchedTitle) state.eventTitle = fetchedTitle;
-  if (fetchedTitle) elements.eventLabel.textContent = `${fetchedTitle} · #${state.eventId}`;
   state.fetchedAt = new Date().toISOString();
   saveState();
   renderResults();
@@ -200,7 +212,7 @@ function escapeHtml(value) {
 function renderResults() {
   const results = state?.results || [];
   if (!results.length) {
-    elements.results.innerHTML = '<div class="empty-state">No results yet. Tap refresh to fetch the first snapshot.</div>';
+    elements.results.innerHTML = '<div class="empty-state">No results yet.</div>';
     return;
   }
   elements.results.innerHTML = results.map((participant) => `
@@ -218,16 +230,33 @@ function formatTime(value) { return new Intl.DateTimeFormat(undefined, { hour: '
 
 function openAddDialog() { elements.personQuery.value = ''; elements.addDialog.showModal(); elements.personQuery.focus(); }
 
-elements.setupForm.addEventListener('submit', (event) => {
+elements.setupForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  state = { version: 1, eventId: normalizeQuery(elements.eventId.value), eventTitle: '', watchList: parseWatchList(elements.watchList.value), results: [], fetchedAt: null, changedCount: 0 };
-  saveState();
-  openDashboard();
-  refreshResults();
+  const eventId = normalizeQuery(elements.eventId.value);
+  elements.setupForm.querySelector('button[type="submit"]').disabled = true;
+  setStatus('Finding event…');
+  try {
+    pendingEvent = { eventId, eventTitle: await fetchEvent(eventId) };
+    elements.eventPreviewTitle.textContent = pendingEvent.eventTitle;
+    elements.eventPreview.hidden = false;
+    setStatus('');
+    elements.continueButton.focus();
+  } catch (error) {
+    setStatus(`Could not find that event. ${error.message}`, 'error');
+  } finally {
+    elements.setupForm.querySelector('button[type="submit"]').disabled = false;
+  }
 });
 
-elements.watchList.addEventListener('input', keepBibNumbersOnly);
 elements.personQuery.addEventListener('input', keepDigitsOnly);
+elements.continueButton.addEventListener('click', () => {
+  if (!pendingEvent) return;
+  state = { version: 1, eventId: pendingEvent.eventId, eventTitle: pendingEvent.eventTitle, watchList: [], results: [], fetchedAt: null, changedCount: 0 };
+  pendingEvent = null;
+  saveState();
+  openDashboard();
+});
+elements.eventIdHelp.addEventListener('click', () => elements.eventIdDialog.showModal());
 
 elements.refresh.addEventListener('click', refreshResults);
 elements.addButton.addEventListener('click', openAddDialog);
@@ -274,8 +303,11 @@ elements.confirmForm.addEventListener('submit', (event) => {
   }
   localStorage.removeItem(STORAGE_KEY);
   state = null;
+  pendingEvent = null;
   elements.confirmDialog.close();
   elements.setupForm.reset();
+  elements.eventPreview.hidden = true;
+  elements.eventPreviewTitle.textContent = '';
   showView('setup');
 });
 
