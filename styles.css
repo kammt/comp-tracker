@@ -28,6 +28,9 @@ input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 
 .button-primary { color: var(--ink); background: var(--mint); }
 .button-secondary { color: var(--ink); background: var(--panel); border: 1px solid var(--line); }
 .button-danger { color: #a83d34; background: #fff0ee; border: 1px solid #f2c1ba; }
+.button.is-loading { display: inline-flex; align-items: center; justify-content: center; gap: 9px; }
+.button.is-loading::before { width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; content: ''; animation: spin .8s linear infinite; }
+.button:disabled { cursor: wait; opacity: .75; }
 .topbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin: 12px 0 24px; }
 .topbar h1 { font-size: clamp(2.1rem, 8vw, 4rem); }
 .icon-button, .close-button { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 50%; color: var(--ink); background: var(--panel); font-size: 1.6rem; }

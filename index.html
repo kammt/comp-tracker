@@ -20,7 +20,7 @@
         <form id="setup-form" class="stack-form">
           <label for="event-id">Event ID</label>
           <input id="event-id" name="eventId" inputmode="numeric" pattern="[0-9]+" placeholder="e.g. 393" required />
-          <button class="button button-primary" type="submit">Find event <span aria-hidden="true">→</span></button>
+          <button id="find-event-button" class="button button-primary" type="submit"><span id="find-event-label">Find event</span> <span aria-hidden="true">→</span></button>
         </form>
         <div id="setup-status" class="status-banner" role="status" hidden></div>
         <p class="setup-help"><button id="event-id-help" class="text-button" type="button">Where do I find the event ID?</button></p>

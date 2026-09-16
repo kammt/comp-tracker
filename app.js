@@ -6,6 +6,8 @@ const elements = {
   setup: document.querySelector('#setup-view'),
   dashboard: document.querySelector('#dashboard-view'),
   setupForm: document.querySelector('#setup-form'),
+  findEventButton: document.querySelector('#find-event-button'),
+  findEventLabel: document.querySelector('#find-event-label'),
   eventId: document.querySelector('#event-id'),
   setupStatus: document.querySelector('#setup-status'),
   eventPreviewTitle: document.querySelector('#event-preview-title'),
@@ -232,7 +234,9 @@ function openAddDialog() { elements.personQuery.value = ''; elements.addDialog.s
 elements.setupForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const eventId = normalizeQuery(elements.eventId.value);
-  elements.setupForm.querySelector('button[type="submit"]').disabled = true;
+  elements.findEventButton.disabled = true;
+  elements.findEventButton.classList.add('is-loading');
+  elements.findEventLabel.textContent = 'Finding event...';
   setStatus('Finding event…', 'info', elements.setupStatus);
   try {
     pendingEvent = { eventId, eventTitle: await fetchEvent(eventId) };
@@ -243,7 +247,9 @@ elements.setupForm.addEventListener('submit', async (event) => {
     pendingEvent = null;
     setStatus(`Could not find that event. ${error.message}`, 'error', elements.setupStatus);
   } finally {
-    elements.setupForm.querySelector('button[type="submit"]').disabled = false;
+    elements.findEventButton.disabled = false;
+    elements.findEventButton.classList.remove('is-loading');
+    elements.findEventLabel.textContent = 'Find event';
   }
 });
 
