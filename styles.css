@@ -2,7 +2,7 @@
 
 :root { --ink: #17231f; --muted: #65736e; --paper: #f7f7f2; --panel: #ffffff; --line: #dce3dc; --mint: #b5edce; --mint-strong: #16835c; --coral: #da5b4d; --shadow: 0 20px 60px rgba(23, 35, 31, .08); }
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; color: var(--ink); background: radial-gradient(circle at 10% 0%, #e5f8ea 0, transparent 30rem), var(--paper); font: 16px/1.5 'DM Sans', sans-serif; }
+body { margin: 0; min-width: 320px; color: var(--ink); background: radial-gradient(circle at 10% 0%, #e5f8ea 0, transparent 30rem), var(--paper); background-repeat: no-repeat; font: 16px/1.5 'DM Sans', sans-serif; }
 button, input, textarea { font: inherit; }
 button { cursor: pointer; }
 .app-shell { width: min(100% - 32px, 880px); margin: 0 auto; padding: 24px 0 48px; }
@@ -65,7 +65,7 @@ input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 
 
 @media (prefers-color-scheme: dark) {
 	:root { --ink: #edf4ef; --muted: #a4b5ad; --paper: #101815; --panel: #18221e; --line: #304039; --mint: #9ce4c0; --mint-strong: #63d39e; --coral: #ff8476; --shadow: 0 20px 60px rgba(0, 0, 0, .22); }
-	body { background: radial-gradient(circle at 10% 0%, #1c3b2d 0, transparent 30rem), var(--paper); }
+	body { background: radial-gradient(circle at 10% 0%, #1c3b2d 0, transparent 30rem), var(--paper); background-repeat: no-repeat; }
 	input, textarea { color: var(--ink); background: rgba(24,34,30,.9); }
 	.button-primary { color: #102219; }
 	.status-banner { background: #1e3228; }
