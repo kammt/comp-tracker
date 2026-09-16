@@ -7,11 +7,12 @@ const elements = {
   dashboard: document.querySelector('#dashboard-view'),
   setupForm: document.querySelector('#setup-form'),
   eventId: document.querySelector('#event-id'),
-  eventPreview: document.querySelector('#event-preview'),
+  setupStatus: document.querySelector('#setup-status'),
   eventPreviewTitle: document.querySelector('#event-preview-title'),
   continueButton: document.querySelector('#continue-button'),
   eventIdHelp: document.querySelector('#event-id-help'),
   eventIdDialog: document.querySelector('#event-id-dialog'),
+  eventPreviewDialog: document.querySelector('#event-preview-dialog'),
   eventLabel: document.querySelector('#event-label'),
   eventTitle: document.querySelector('#event-title'),
   results: document.querySelector('#results'),
@@ -54,10 +55,10 @@ function showView(view) {
   elements.dashboard.hidden = view !== 'dashboard';
 }
 
-function setStatus(message, kind = 'info') {
-  elements.status.textContent = message;
-  elements.status.dataset.kind = kind;
-  elements.status.hidden = !message;
+function setStatus(message, kind = 'info', statusElement = elements.status) {
+  statusElement.textContent = message;
+  statusElement.dataset.kind = kind;
+  statusElement.hidden = !message;
 }
 
 function normalizeQuery(value) {
@@ -132,27 +133,25 @@ async function fetchParticipant(eventId, query) {
   let response;
   try {
     response = await fetch(target, { cache: 'no-store', headers: { Accept: 'text/html' } });
-    if (!response.ok) throw new Error(`scoring.dance returned ${response.status}`);
   } catch (directError) {
     // GitHub Pages cannot proxy cross-origin HTML. The fallback keeps the app usable
     // when scoring.dance does not expose CORS headers, while preserving a direct request first.
     response = await fetch(`${CORS_PROXY}${encodeURIComponent(target)}`, { cache: 'no-store' });
-    if (!response.ok) throw directError;
   }
+  if (!response.ok) throw new Error(`scoring.dance returned ${response.status}`);
   return parseParticipant(await response.text(), query, eventId);
 }
 
 async function fetchEvent(eventId) {
   const target = `https://scoring.dance/enUS/events/${encodeURIComponent(eventId)}/wall`;
+  let response;
   try {
-    const response = await fetch(target, { cache: 'no-store', headers: { Accept: 'text/html' } });
-    if (!response.ok) throw new Error(`scoring.dance returned ${response.status}`);
-    return parseEventTitle(await response.text());
+    response = await fetch(target, { cache: 'no-store', headers: { Accept: 'text/html' } });
   } catch (directError) {
-    const response = await fetch(`${CORS_PROXY}${encodeURIComponent(target)}`, { cache: 'no-store' });
-    if (!response.ok) throw directError;
-    return parseEventTitle(await response.text());
+    response = await fetch(`${CORS_PROXY}${encodeURIComponent(target)}`, { cache: 'no-store' });
   }
+  if (!response.ok) throw new Error(`scoring.dance returned ${response.status}`);
+  return parseEventTitle(await response.text());
 }
 
 function sameParticipant(previous, next) {
@@ -234,15 +233,15 @@ elements.setupForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const eventId = normalizeQuery(elements.eventId.value);
   elements.setupForm.querySelector('button[type="submit"]').disabled = true;
-  setStatus('Finding event…');
+  setStatus('Finding event…', 'info', elements.setupStatus);
   try {
     pendingEvent = { eventId, eventTitle: await fetchEvent(eventId) };
     elements.eventPreviewTitle.textContent = pendingEvent.eventTitle;
-    elements.eventPreview.hidden = false;
-    setStatus('');
-    elements.continueButton.focus();
+    setStatus('', 'info', elements.setupStatus);
+    elements.eventPreviewDialog.showModal();
   } catch (error) {
-    setStatus(`Could not find that event. ${error.message}`, 'error');
+    pendingEvent = null;
+    setStatus(`Could not find that event. ${error.message}`, 'error', elements.setupStatus);
   } finally {
     elements.setupForm.querySelector('button[type="submit"]').disabled = false;
   }
@@ -254,8 +253,10 @@ elements.continueButton.addEventListener('click', () => {
   state = { version: 1, eventId: pendingEvent.eventId, eventTitle: pendingEvent.eventTitle, watchList: [], results: [], fetchedAt: null, changedCount: 0 };
   pendingEvent = null;
   saveState();
+  elements.eventPreviewDialog.close();
   openDashboard();
 });
+elements.eventPreviewDialog.addEventListener('close', () => elements.eventId.focus());
 elements.eventIdHelp.addEventListener('click', () => elements.eventIdDialog.showModal());
 
 elements.refresh.addEventListener('click', refreshResults);
@@ -306,8 +307,8 @@ elements.confirmForm.addEventListener('submit', (event) => {
   pendingEvent = null;
   elements.confirmDialog.close();
   elements.setupForm.reset();
-  elements.eventPreview.hidden = true;
   elements.eventPreviewTitle.textContent = '';
+  setStatus('', 'info', elements.setupStatus);
   showView('setup');
 });
 
