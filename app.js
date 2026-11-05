@@ -385,7 +385,42 @@ function openDashboard() {
   }
 }
 
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+function setupServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  // A controller change while one was already active means a new version was deployed.
+  // The very first install also fires it, but there is nothing to reload then.
+  let hasController = Boolean(navigator.serviceWorker.controller);
+  let reloadPending = false;
+  const isBusy = () => Boolean(refreshInFlight || document.querySelector('dialog[open]'));
+  const reloadWhenIdle = () => {
+    if (!reloadPending) return;
+    // Don't yank the page away mid-refresh or while a dialog is being filled in;
+    // reload as soon as the app is hidden instead, where nobody sees it.
+    if (document.visibilityState === 'visible' && isBusy()) return;
+    reloadPending = false;
+    window.location.reload();
+  };
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hasController) {
+      hasController = true;
+      return;
+    }
+    reloadPending = true;
+    reloadWhenIdle();
+  });
+  window.addEventListener('load', async () => {
+    const registration = await navigator.serviceWorker.register('./sw.js').catch(() => null);
+    if (!registration) return;
+    // Home-screen apps on iOS are usually resumed rather than relaunched, which skips the
+    // browser's own update check, so check every time the app comes back to the foreground.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') registration.update().catch(() => {});
+      else reloadWhenIdle();
+    });
+  });
+}
+
+setupServiceWorker();
 
 if (state) openDashboard();
 else showView('setup');
