@@ -1,4 +1,4 @@
-const CACHE = 'comptracker-v3';
+const CACHE = 'comptracker-v4';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', (event) => {
@@ -11,12 +11,20 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Network first, so app updates reach users right away; the cache is only an offline fallback.
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
-  if (new URL(event.request.url).origin !== self.location.origin) return;
-  event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
-    const copy = response.clone();
-    caches.open(CACHE).then((cache) => cache.put(event.request, copy));
-    return response;
-  })));
+  const { request } = event;
+  if (request.method !== 'GET') return;
+  if (new URL(request.url).origin !== self.location.origin) return;
+  event.respondWith(
+    fetch(request)
+      .then((response) => {
+        if (response.ok) {
+          const copy = response.clone();
+          event.waitUntil(caches.open(CACHE).then((cache) => cache.put(request, copy)));
+        }
+        return response;
+      })
+      .catch(() => caches.match(request, { ignoreSearch: request.mode === 'navigate' }).then((cached) => cached || Response.error())),
+  );
 });
