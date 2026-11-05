@@ -16,7 +16,6 @@ const elements = {
   eventIdDialog: document.querySelector('#event-id-dialog'),
   eventPreviewDialog: document.querySelector('#event-preview-dialog'),
   eventLabel: document.querySelector('#event-label'),
-  eventTitle: document.querySelector('#event-title'),
   results: document.querySelector('#results'),
   status: document.querySelector('#status-banner'),
   refresh: document.querySelector('#refresh-button'),
@@ -38,6 +37,8 @@ let state = readState();
 let pendingEvent = null;
 let pendingRemoval = null;
 let changedIndicatorTimer = null;
+let refreshInFlight = null;
+let refreshQueued = false;
 
 function readState() {
   try {
@@ -129,9 +130,8 @@ function parseRound(roundElement) {
   return { name: roundName, status: isIn ? 'in' : 'out', heat };
 }
 
-async function fetchParticipant(eventId, query) {
-  const search = new URLSearchParams({ q: query });
-  const target = `https://scoring.dance/enUS/events/${encodeURIComponent(eventId)}/wall?${search}`;
+async function fetchWallPage(eventId, search = '') {
+  const target = `https://scoring.dance/enUS/events/${encodeURIComponent(eventId)}/wall${search ? `?${search}` : ''}`;
   let response;
   try {
     response = await fetch(target, { cache: 'no-store', headers: { Accept: 'text/html' } });
@@ -140,20 +140,17 @@ async function fetchParticipant(eventId, query) {
     // when scoring.dance does not expose CORS headers, while preserving a direct request first.
     response = await fetch(`${CORS_PROXY}${encodeURIComponent(target)}`, { cache: 'no-store' });
   }
-  if (!response.ok) throw new Error(`scoring.dance returned error code ${response.status}`);
-  return parseParticipant(await response.text(), query, eventId);
+  if (!response.ok) throw new Error(`scoring.dance returned error code ${response.status}.`);
+  return response.text();
+}
+
+async function fetchParticipant(eventId, query) {
+  const html = await fetchWallPage(eventId, new URLSearchParams({ q: query }));
+  return parseParticipant(html, query, eventId);
 }
 
 async function fetchEvent(eventId) {
-  const target = `https://scoring.dance/enUS/events/${encodeURIComponent(eventId)}/wall`;
-  let response;
-  try {
-    response = await fetch(target, { cache: 'no-store', headers: { Accept: 'text/html' } });
-  } catch (directError) {
-    response = await fetch(`${CORS_PROXY}${encodeURIComponent(target)}`, { cache: 'no-store' });
-  }
-  if (!response.ok) throw new Error(`scoring.dance returned ${response.status}`);
-  return parseEventTitle(await response.text());
+  return parseEventTitle(await fetchWallPage(eventId));
 }
 
 function sameParticipant(previous, next) {
@@ -165,41 +162,80 @@ function sameParticipant(previous, next) {
   return comparable(previous) === comparable(next);
 }
 
-async function refreshResults() {
-  if (!state || state.watchList.length === 0) return;
-  elements.refresh.disabled = true;
-  elements.refresh.classList.add('is-loading');
-  setStatus(`Refreshing ${state.watchList.length} ${state.watchList.length === 1 ? 'person' : 'people'}…`);
-  const previousResults = state.results || [];
-  let changedCount = 0;
-  const settled = await Promise.allSettled(state.watchList.map((query) => fetchParticipant(state.eventId, query)));
-  const results = settled.map((item, index) => {
-    if (item.status === 'fulfilled') {
-      const oldResult = previousResults.find((result) => result.query === state.watchList[index]);
-      const changed = Boolean(oldResult && !sameParticipant(oldResult, item.value));
-      if (changed) changedCount += 1;
-      return { ...item.value, changed };
+function changeSummaryText(changedCount) {
+  return `${changedCount} ${changedCount === 1 ? "person's" : "people's"} info changed on this update.`;
+}
+
+function setRefreshing(isRefreshing) {
+  elements.refresh.disabled = isRefreshing;
+  elements.refresh.classList.toggle('is-loading', isRefreshing);
+}
+
+// Only one refresh runs at a time; a request made meanwhile (e.g. adding a person)
+// queues exactly one follow-up refresh so nobody is left out.
+function refreshResults() {
+  if (refreshInFlight) {
+    refreshQueued = true;
+    return refreshInFlight;
+  }
+  refreshInFlight = runRefresh().finally(() => {
+    refreshInFlight = null;
+    if (refreshQueued) {
+      refreshQueued = false;
+      refreshResults();
     }
-    const oldResult = previousResults.find((result) => result.query === state.watchList[index]);
-    return oldResult ? { ...oldResult, error: item.reason.message } : { query: state.watchList[index], name: state.watchList[index], competitions: [], error: item.reason.message };
   });
-  state.results = results;
-  state.changedCount = changedCount;
-  state.fetchedAt = new Date().toISOString();
-  saveState();
-  renderResults();
-  const failed = settled.filter((item) => item.status === 'rejected').length;
-  const changeSummary = `${changedCount} ${changedCount === 1 ? "person's" : "people's"} info changed on this update.`;
-  setStatus(failed ? `${failed} result${failed === 1 ? '' : 's'} could not be refreshed. Cached data is shown. ${changeSummary}` : `Updated ${formatTime(state.fetchedAt)}. ${changeSummary}`, failed ? 'error' : 'info');
-  scheduleChangedIndicatorReset();
-  elements.refresh.disabled = false;
-  elements.refresh.classList.remove('is-loading');
+  return refreshInFlight;
+}
+
+async function runRefresh() {
+  const current = state;
+  if (!current) return;
+  if (current.watchList.length === 0) {
+    setStatus('Add a person to start tracking their results.');
+    return;
+  }
+  // Snapshot the list: the user can add or remove people while requests are in flight.
+  const watchList = [...current.watchList];
+  setRefreshing(true);
+  setStatus(`Refreshing ${watchList.length} ${watchList.length === 1 ? 'person' : 'people'}…`);
+  try {
+    const settled = await Promise.allSettled(watchList.map((query) => fetchParticipant(current.eventId, query)));
+    // The event was reset (or replaced) while we were waiting; drop these results.
+    if (state !== current) return;
+    const previousResults = current.results || [];
+    let changedCount = 0;
+    const results = settled.map((item, index) => {
+      const query = watchList[index];
+      const oldResult = previousResults.find((result) => result.query === query);
+      if (item.status === 'fulfilled') {
+        const changed = Boolean(oldResult && !oldResult.neverLoaded && !sameParticipant(oldResult, item.value));
+        if (changed) changedCount += 1;
+        return { ...item.value, changed };
+      }
+      return oldResult
+        ? { ...oldResult, changed: false, error: item.reason.message }
+        : { query, name: query, competitions: [], neverLoaded: true, changed: false, error: item.reason.message };
+    }).filter((result) => current.watchList.includes(result.query));
+    current.results = results;
+    current.changedCount = changedCount;
+    current.fetchedAt = new Date().toISOString();
+    saveState();
+    renderResults();
+    const failed = settled.filter((item) => item.status === 'rejected').length;
+    const changeSummary = changeSummaryText(changedCount);
+    setStatus(failed ? `${failed} result${failed === 1 ? '' : 's'} could not be refreshed. Cached data is shown where available. ${changeSummary}` : `Updated ${formatTime(current.fetchedAt)}. ${changeSummary}`, failed ? 'error' : 'info');
+    scheduleChangedIndicatorReset();
+  } finally {
+    setRefreshing(false);
+  }
 }
 
 function scheduleChangedIndicatorReset() {
   clearTimeout(changedIndicatorTimer);
   if (!(state?.results || []).some((result) => result.changed)) return;
   changedIndicatorTimer = setTimeout(() => {
+    if (!state?.results) return;
     state.results = state.results.map((result) => ({ ...result, changed: false }));
     saveState();
     renderResults();
@@ -219,15 +255,29 @@ function renderResults() {
   elements.results.innerHTML = results.map((participant) => `
     <article class="participant${participant.changed ? ' is-changed' : ''}">
       <header class="participant-header"><div><h2 class="participant-name">${escapeHtml(participant.name)}</h2><span class="bib">Search: ${escapeHtml(participant.query)}</span></div><div class="participant-tools">${participant.changed ? '<strong class="change-label">CHANGED</strong>' : ''}<button class="remove-button" type="button" data-remove-query="${escapeHtml(participant.query)}" aria-label="Remove ${escapeHtml(participant.name)}" title="Remove person">×</button></div></header>
-      ${participant.error ? `<p class="participant-error">${escapeHtml(participant.error)}</p>` : participant.competitions.map(renderCompetition).join('') || '<p class="participant-error">No competition details found.</p>'}
+      ${renderParticipantBody(participant)}
     </article>`).join('');
+}
+
+function renderParticipantBody(participant) {
+  const competitions = (participant.competitions || []).map(renderCompetition).join('');
+  if (!participant.error) return competitions || '<p class="participant-error">No competition details found.</p>';
+  const prefix = competitions ? 'Showing cached results. ' : '';
+  return `<p class="participant-error">${escapeHtml(prefix + participant.error)}</p>${competitions}`;
 }
 
 function renderCompetition(competition) {
   return `<section class="competition"><h3 class="competition-title">${escapeHtml(competition.title)}</h3>${competition.role ? `<p class="meta-line">Role: ${escapeHtml(competition.role)}</p>` : ''}${competition.partner ? `<p class="meta-line">Partner: ${escapeHtml(competition.partner)}</p>` : ''}<div class="rounds">${competition.rounds.map((round) => `<div class="round"><span class="round-name">${escapeHtml(round.name)}</span><span class="round-status ${round.status}">${round.status === 'in' ? '✓ In' : '× Out'}</span>${round.heat ? `<span class="heat">${escapeHtml(round.heat)}</span>` : ''}</div>`).join('')}</div></section>`;
 }
 
-function formatTime(value) { return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(new Date(value)); }
+function formatTime(value) {
+  const date = new Date(value);
+  const isToday = date.toDateString() === new Date().toDateString();
+  const options = isToday
+    ? { hour: 'numeric', minute: '2-digit', second: '2-digit' }
+    : { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
+  return new Intl.DateTimeFormat(undefined, options).format(date);
+}
 
 function openAddDialog() { elements.personQuery.value = ''; elements.addDialog.showModal(); elements.personQuery.focus(); }
 
@@ -272,8 +322,9 @@ elements.results.addEventListener('click', (event) => {
   const removeButton = event.target.closest('[data-remove-query]');
   if (!removeButton) return;
   const query = removeButton.dataset.removeQuery;
+  const name = (state?.results || []).find((result) => result.query === query)?.name || query;
   pendingRemoval = query;
-  elements.confirmTitle.textContent = `Remove ${query}?`;
+  elements.confirmTitle.textContent = `Remove ${name}?`;
   elements.confirmCopy.textContent = 'This removes the person and their cached results from the watch list.';
   elements.confirmAction.textContent = 'Remove person';
   elements.confirmDialog.showModal();
@@ -281,9 +332,14 @@ elements.results.addEventListener('click', (event) => {
 elements.addForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const query = normalizeQuery(elements.personQuery.value);
-  if (query && !state.watchList.includes(query)) state.watchList.push(query);
-  saveState();
   elements.addDialog.close();
+  if (!query) return;
+  if (state.watchList.includes(query)) {
+    setStatus(`Bib ${query} is already on your watch list.`);
+    return;
+  }
+  state.watchList.push(query);
+  saveState();
   openDashboard();
   refreshResults();
 });
@@ -309,6 +365,7 @@ elements.confirmForm.addEventListener('submit', (event) => {
     return;
   }
   localStorage.removeItem(STORAGE_KEY);
+  clearTimeout(changedIndicatorTimer);
   state = null;
   pendingEvent = null;
   elements.confirmDialog.close();
@@ -324,9 +381,7 @@ function openDashboard() {
   renderResults();
   scheduleChangedIndicatorReset();
   if (state.fetchedAt) {
-    const changedCount = state.changedCount || 0;
-    const changeSummary = `${changedCount} ${changedCount === 1 ? "person's" : "people's"} info changed on this update.`;
-    setStatus(`Last updated ${formatTime(state.fetchedAt)}. ${changeSummary}`);
+    setStatus(`Last updated ${formatTime(state.fetchedAt)}. ${changeSummaryText(state.changedCount || 0)}`);
   }
 }
 
