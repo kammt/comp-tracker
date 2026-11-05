@@ -1,4 +1,4 @@
-<h1><img src="icon.svg" alt="" width="40" height="40" align="center"> CompTracker</h1>
+<h1><img src="icon.svg" alt="" width="40" height="40" align="top"> CompTracker</h1>
 
 A mobile-friendly web app for keeping track of how your friends are doing at West Coast Swing competitions hosted on [scoring.dance](https://scoring.dance).
 
