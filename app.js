@@ -26,6 +26,14 @@ const elements = {
   closeAddDialog: document.querySelector('#close-add-dialog'),
   addForm: document.querySelector('#add-form'),
   personQuery: document.querySelector('#person-query'),
+  addTabs: [...document.querySelectorAll('#add-dialog [role="tab"]')],
+  nameForm: document.querySelector('#name-form'),
+  rosterCopy: document.querySelector('#roster-copy'),
+  rosterButton: document.querySelector('#roster-button'),
+  rosterButtonLabel: document.querySelector('#roster-button-label'),
+  nameSearch: document.querySelector('#name-search'),
+  nameQuery: document.querySelector('#name-query'),
+  nameSuggestions: document.querySelector('#name-suggestions'),
   confirmDialog: document.querySelector('#confirm-dialog'),
   closeConfirmDialog: document.querySelector('#close-confirm-dialog'),
   confirmTitle: document.querySelector('#confirm-title'),
@@ -247,6 +255,39 @@ async function fetchResultPages(eventRounds, participants) {
   const settled = await Promise.allSettled(roundIds.map(fetchRoundResults));
   settled.forEach((item, index) => { if (item.status === 'fulfilled') pages.set(roundIds[index], item.value); });
   return { pages, failed: settled.filter((item) => item.status === 'rejected').length };
+}
+
+const ROSTER_SEARCH_LIMIT = 100;
+
+// Builds the list of everyone competing, for searching by name. The API has no "list all"
+// call: its participant search matches everyone with `q=%` but returns at most 100 people,
+// so the start list of every round is read as well. The search still covers people whose
+// start lists are not public yet.
+async function fetchRoster(eventId) {
+  const rounds = await fetchEventRounds(eventId);
+  const [search, ...lists] = await Promise.allSettled([
+    apiGet('participant.search', { event: eventId, q: '%', limit: ROSTER_SEARCH_LIMIT }),
+    ...rounds.map((round) => apiGet('round.marshlist', { round: round.id })),
+  ]);
+  const people = new Map();
+  const add = (bib, name) => {
+    const key = String(bib ?? '').trim();
+    const cleanName = String(name || '').replace(/\s+/g, ' ').trim();
+    if (key && cleanName && !people.has(key)) people.set(key, cleanName);
+  };
+  lists.filter((item) => item.status === 'fulfilled').forEach((item) => Object.values(item.value?.heats || {})
+    .forEach((heat) => ['leader', 'follower'].forEach((role) => (heat?.[role] || []).forEach((person) => add(person.bib, person.name)))));
+  const searchResults = search.status === 'fulfilled' ? search.value?.results || [] : [];
+  searchResults.forEach((person) => add(person.bib, person.name));
+  const listsLoaded = lists.some((item) => item.status === 'fulfilled');
+  if (!listsLoaded && search.status === 'rejected') throw search.reason;
+  return {
+    eventId: String(eventId),
+    fetchedAt: new Date().toISOString(),
+    people: [...people].map(([bib, name]) => ({ bib, name })).sort((a, b) => a.name.localeCompare(b.name)),
+    // Without any public start list only the search's first 100 people are known.
+    partial: !listsLoaded && searchResults.length >= ROSTER_SEARCH_LIMIT,
+  };
 }
 
 // Rounds whose results page could not be loaded this time keep the result cached last time.
@@ -508,7 +549,175 @@ function formatTime(value) {
   return new Intl.DateTimeFormat(undefined, options).format(date);
 }
 
-function openAddDialog() { elements.personQuery.value = ''; elements.addDialog.showModal(); elements.personQuery.focus(); }
+let addTab = 'bib';
+let rosterLoading = false;
+let rosterError = '';
+let rosterIndex = { roster: null, entries: [] };
+const MAX_SUGGESTIONS = 8;
+
+function openAddDialog() {
+  elements.personQuery.value = '';
+  elements.nameQuery.value = '';
+  rosterError = '';
+  renderRosterStatus();
+  renderNameSuggestions();
+  elements.addDialog.showModal();
+  selectAddTab(addTab);
+}
+
+function selectAddTab(tab) {
+  addTab = tab;
+  elements.addTabs.forEach((button) => button.setAttribute('aria-selected', String(button.dataset.tab === tab)));
+  elements.addForm.hidden = tab !== 'bib';
+  elements.nameForm.hidden = tab !== 'name';
+  if (tab === 'bib') elements.personQuery.focus();
+  else (state?.roster ? elements.nameQuery : elements.rosterButton).focus();
+}
+
+function addToWatchList(query) {
+  elements.addDialog.close();
+  if (!query) return;
+  if (state.watchList.includes(query)) {
+    setStatus(`Bib ${query} is already on your watch list.`);
+    return;
+  }
+  state.watchList.push(query);
+  saveState();
+  openDashboard();
+  refreshResults();
+}
+
+function renderRosterStatus() {
+  const roster = state?.roster;
+  elements.rosterButton.disabled = rosterLoading;
+  elements.rosterButton.classList.toggle('is-loading', rosterLoading);
+  elements.rosterButtonLabel.textContent = rosterLoading ? 'Loading competitors…' : roster ? 'Reload list' : 'Load competitor list';
+  elements.nameSearch.hidden = !roster;
+  let copy;
+  if (rosterLoading) copy = 'Loading the name and bib of everyone competing from scoring.dance…';
+  else if (roster) {
+    const count = roster.people.length;
+    copy = `${count} competitor${count === 1 ? '' : 's'}, list loaded ${formatTime(roster.fetchedAt)}.`;
+    if (roster.partial) copy += ` No start lists are public yet, so only the first ${ROSTER_SEARCH_LIMIT} registered people are included.`;
+  } else copy = 'To search by name, first load the names and bibs of everyone competing at this event from scoring.dance.';
+  elements.rosterCopy.textContent = rosterError ? `${rosterError} ${roster ? 'The list loaded earlier is still used.' : ''}`.trim() : copy;
+  elements.rosterCopy.classList.toggle('is-error', Boolean(rosterError));
+}
+
+async function loadRoster() {
+  if (rosterLoading || !state) return;
+  const current = state;
+  rosterLoading = true;
+  rosterError = '';
+  renderRosterStatus();
+  try {
+    const roster = await fetchRoster(current.eventId);
+    if (state !== current) return;
+    current.roster = roster;
+    saveState();
+  } catch (error) {
+    rosterError = `Could not load the competitor list. ${error.message}`;
+  } finally {
+    rosterLoading = false;
+    if (state) {
+      renderRosterStatus();
+      renderNameSuggestions();
+      if (state.roster && elements.addDialog.open && addTab === 'name') elements.nameQuery.focus();
+    }
+  }
+}
+
+// Names are searched without accents or case, so "lukasz" finds "Łukasz".
+function searchKey(text) {
+  return String(text || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    .replace(/ł/g, 'l').replace(/đ/g, 'd').replace(/ø/g, 'o').replace(/ß/g, 'ss');
+}
+
+// The search key of a name plus, for each key character, where it came from in the name,
+// so a match in the key can be highlighted in the original spelling.
+function indexName(name) {
+  let key = '';
+  const starts = [];
+  const ends = [];
+  let position = 0;
+  for (const character of name) {
+    const part = searchKey(character);
+    for (let index = 0; index < part.length; index += 1) {
+      starts.push(position);
+      ends.push(position + character.length);
+    }
+    key += part;
+    position += character.length;
+  }
+  return { key, starts, ends };
+}
+
+function rosterEntries() {
+  const roster = state?.roster || null;
+  if (rosterIndex.roster !== roster) {
+    rosterIndex = { roster, entries: (roster?.people || []).map((person) => ({ ...person, ...indexName(person.name) })) };
+  }
+  return rosterIndex.entries;
+}
+
+function isWordStart(key, index) {
+  return index === 0 || !/[\p{L}\p{N}]/u.test(key[index - 1]);
+}
+
+// Every typed word has to appear somewhere in the name; names where the words start
+// a first or last name come first.
+function matchRoster(query) {
+  const words = searchKey(query).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  if (!words.length) return [];
+  return rosterEntries().map((entry) => {
+    let wordStarts = 0;
+    const ranges = [];
+    for (const word of words) {
+      const first = entry.key.indexOf(word);
+      if (first < 0) return null;
+      let index = first;
+      while (index >= 0 && !isWordStart(entry.key, index)) index = entry.key.indexOf(word, index + 1);
+      if (index >= 0) wordStarts += 1;
+      else index = first;
+      ranges.push([entry.starts[index], entry.ends[index + word.length - 1]]);
+    }
+    return { entry, wordStarts, ranges };
+  }).filter(Boolean).sort((a, b) => b.wordStarts - a.wordStarts || a.entry.name.localeCompare(b.entry.name));
+}
+
+function highlightName(name, ranges) {
+  const merged = [...ranges].sort((a, b) => a[0] - b[0]).reduce((list, range) => {
+    const last = list[list.length - 1];
+    if (last && range[0] <= last[1]) last[1] = Math.max(last[1], range[1]);
+    else list.push([...range]);
+    return list;
+  }, []);
+  let html = '';
+  let position = 0;
+  for (const [start, end] of merged) {
+    html += `${escapeHtml(name.slice(position, start))}<mark>${escapeHtml(name.slice(start, end))}</mark>`;
+    position = end;
+  }
+  return html + escapeHtml(name.slice(position));
+}
+
+function renderNameSuggestions() {
+  const query = elements.nameQuery.value.trim();
+  const matches = state?.roster && query ? matchRoster(query) : [];
+  if (!state?.roster || !query) {
+    elements.nameSuggestions.innerHTML = '';
+    return;
+  }
+  if (!matches.length) {
+    elements.nameSuggestions.innerHTML = `<p class="suggestions-empty">No competitor matches “${escapeHtml(query)}”.</p>`;
+    return;
+  }
+  const more = matches.length - MAX_SUGGESTIONS;
+  elements.nameSuggestions.innerHTML = matches.slice(0, MAX_SUGGESTIONS).map(({ entry, ranges }) => {
+    const tracked = state.watchList.includes(entry.bib);
+    return `<button class="suggestion" type="button" data-bib="${escapeHtml(entry.bib)}"><span class="suggestion-name">${highlightName(entry.name, ranges)}</span>${tracked ? '<span class="suggestion-tag">On list</span>' : ''}<span class="suggestion-bib">#${escapeHtml(entry.bib)}</span></button>`;
+  }).join('') + (more > 0 ? `<p class="suggestions-empty">${more} more. Keep typing to narrow it down.</p>` : '');
+}
 
 let liveEventsRequest = 0;
 
@@ -601,17 +810,20 @@ elements.results.addEventListener('click', (event) => {
 });
 elements.addForm.addEventListener('submit', (event) => {
   event.preventDefault();
-  const query = normalizeQuery(elements.personQuery.value);
-  elements.addDialog.close();
-  if (!query) return;
-  if (state.watchList.includes(query)) {
-    setStatus(`Bib ${query} is already on your watch list.`);
-    return;
-  }
-  state.watchList.push(query);
-  saveState();
-  openDashboard();
-  refreshResults();
+  addToWatchList(normalizeQuery(elements.personQuery.value));
+});
+elements.addTabs.forEach((tab) => tab.addEventListener('click', () => selectAddTab(tab.dataset.tab)));
+elements.rosterButton.addEventListener('click', loadRoster);
+elements.nameQuery.addEventListener('input', renderNameSuggestions);
+elements.nameSuggestions.addEventListener('click', (event) => {
+  const suggestion = event.target.closest('[data-bib]');
+  if (suggestion) addToWatchList(suggestion.dataset.bib);
+});
+// The keyboard's Go/Enter key picks the top suggestion.
+elements.nameForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const first = elements.nameSuggestions.querySelector('[data-bib]');
+  if (first) addToWatchList(first.dataset.bib);
 });
 elements.resetButton.addEventListener('click', () => {
   pendingRemoval = null;

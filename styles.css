@@ -113,6 +113,25 @@ input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 
 .dialog { width: min(calc(100% - 32px), 480px); border: 0; border-radius: 16px; padding: 22px; box-shadow: 0 24px 80px rgba(23,35,31,.22); }
 .dialog::backdrop { background: rgba(23,35,31,.38); backdrop-filter: blur(3px); }.dialog-heading { display: flex; justify-content: space-between; margin-bottom: 12px; }.close-button { width: 34px; height: 34px; font-size: 1.35rem; }.dialog-actions { display: grid; gap: 10px; }
 .icon-button.is-loading { animation: spin .8s linear infinite; }
+/* Add-person dialog: sits at the top so the phone keyboard does not cover the suggestions. */
+#add-dialog { margin-top: max(16px, env(safe-area-inset-top)); }
+.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 14px; padding: 4px; background: #eef2ee; border-radius: 12px; }
+.tab { padding: 9px 10px; color: var(--muted); background: transparent; border: 0; border-radius: 9px; font-weight: 700; }
+.tab[aria-selected="true"] { color: var(--ink); background: var(--panel); box-shadow: 0 1px 4px rgba(23,35,31,.12); }
+.roster-status { display: grid; gap: 8px; }
+.roster-status .dialog-copy { margin: 0; }
+.roster-status .dialog-copy.is-error { color: #8d322a; }
+.roster-status .button { justify-self: start; padding: 9px 14px; font-size: .9rem; }
+.name-search { display: grid; gap: 10px; }
+.name-search .field-note { margin: 0; }
+.suggestions { display: grid; gap: 6px; }
+.suggestion { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 12px; color: var(--ink); background: #f1f4f0; border: 1px solid transparent; border-radius: 10px; text-align: left; }
+.suggestion:hover, .suggestion:focus-visible { border-color: var(--mint-strong); outline: 0; }
+.suggestion-name { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.suggestion-name mark { color: inherit; background: var(--mint); border-radius: 3px; }
+.suggestion-bib { flex: none; color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
+.suggestion-tag { flex: none; color: var(--mint-strong); font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.suggestions-empty { margin: 0; color: var(--muted); font-size: .9rem; }
 @media (min-width: 640px) { .app-shell { padding-top: 60px; }.dashboard-actions { grid-template-columns: 1fr auto; }.dialog-actions { grid-template-columns: 1fr 1fr; } }
 @keyframes enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -133,4 +152,8 @@ input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 
 	.participant-error { color: #ffb0a7; background: #30201e; }
 	.button-danger { color: #ffaaa0; background: #34201e; border-color: #6d3a34; }
 	.dialog { color: var(--ink); background: var(--panel); }
+	.tabs, .suggestion { background: #22302a; }
+	.tab[aria-selected="true"] { background: var(--line); }
+	.suggestion-name mark { color: #102219; }
+	.roster-status .dialog-copy.is-error { color: #ffb0a7; }
 }

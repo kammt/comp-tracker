@@ -66,11 +66,27 @@
     </main>
 
     <dialog id="add-dialog" class="dialog">
-      <form id="add-form" method="dialog" class="stack-form">
-        <div class="dialog-heading"><div><p class="eyebrow">WATCH LIST</p><h2>Add a person</h2></div><button id="close-add-dialog" class="close-button" type="button" aria-label="Close">×</button></div>
+      <div class="dialog-heading"><div><p class="eyebrow">WATCH LIST</p><h2>Add a person</h2></div><button id="close-add-dialog" class="close-button" type="button" aria-label="Close">×</button></div>
+      <div class="tabs" role="tablist" aria-label="Add by">
+        <button id="add-tab-bib" class="tab" type="button" role="tab" aria-selected="true" aria-controls="add-form" data-tab="bib">By bib</button>
+        <button id="add-tab-name" class="tab" type="button" role="tab" aria-selected="false" aria-controls="name-form" data-tab="name">By name</button>
+      </div>
+      <form id="add-form" method="dialog" class="stack-form" role="tabpanel" aria-labelledby="add-tab-bib">
         <label for="person-query">Bib number</label>
         <input id="person-query" name="personQuery" inputmode="numeric" pattern="[0-9]+" required autocomplete="off" />
         <button class="button button-primary" value="default" type="submit">Add person</button>
+      </form>
+      <form id="name-form" class="stack-form" role="tabpanel" aria-labelledby="add-tab-name" hidden>
+        <div class="roster-status">
+          <p id="roster-copy" class="dialog-copy" aria-live="polite"></p>
+          <button id="roster-button" class="button button-secondary" type="button"><span id="roster-button-label">Load competitor list</span></button>
+        </div>
+        <div id="name-search" class="name-search" hidden>
+          <label for="name-query">First or last name</label>
+          <input id="name-query" name="nameQuery" type="search" autocomplete="off" autocapitalize="words" spellcheck="false" placeholder="e.g. Klara" aria-describedby="name-suggestions-note" />
+          <p id="name-suggestions-note" class="field-note">Tap a name to add their bib to your watch list.</p>
+          <div id="name-suggestions" class="suggestions" aria-live="polite"></div>
+        </div>
       </form>
     </dialog>
     <dialog id="event-id-dialog" class="dialog">
