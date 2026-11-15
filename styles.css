@@ -137,23 +137,29 @@ input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 
 @keyframes spin { to { transform: rotate(360deg); } }
 
 @media (prefers-color-scheme: dark) {
-	:root { --ink: #edf4ef; --muted: #a4b5ad; --paper: #101815; --panel: #18221e; --line: #304039; --mint: #9ce4c0; --mint-strong: #63d39e; --coral: #ff8476; --amber: #f0c050; --gold: #e9c75a; --shadow: 0 20px 60px rgba(0, 0, 0, .22); }
-	body { background: radial-gradient(circle at 10% 0%, #1c3b2d 0, transparent 30rem), var(--paper); background-repeat: no-repeat; }
-	input, textarea { color: var(--ink); background: rgba(24,34,30,.9); }
-	.button-primary { color: #102219; }
-	.status-banner { background: #1e3228; }
-	.status-banner[data-kind="error"] { color: #ffb0a7; background: #3b201e; }
-	.empty-state, .live-events-note { border-color: #52665b; }
-	.live-event-arrow { color: #102219; }
-	.competition { border-color: #26352e; }
-	.round { background: #22302a; }
-	.round-results { background: #22302a; }
-	.round-result.final, .placement-hero { color: #102219; }
-	.participant-error { color: #ffb0a7; background: #30201e; }
-	.button-danger { color: #ffaaa0; background: #34201e; border-color: #6d3a34; }
-	.dialog { color: var(--ink); background: var(--panel); }
-	.tabs, .suggestion { background: #22302a; }
-	.tab[aria-selected="true"] { background: var(--line); }
-	.suggestion-name mark { color: #102219; }
-	.roster-status .dialog-copy.is-error { color: #ffb0a7; }
+	/* OLED black: a true black page, cards separated by hairlines instead of shadows, and the brand mint kept bright. */
+	:root { --ink: #f6f8f7; --muted: #8e9893; --paper: #000000; --panel: #0d0f0e; --surface: #161918; --chip: #252a28; --line: #242927; --line-soft: #1a1e1c; --dash: #333a37; --on-accent: #08160f;
+		--mint: #b5edce; --mint-strong: #6fe0a9; --coral: #ff7d6e; --amber: #f5c451; --gold: #f3d36b; --danger-ink: #ff9d91; --danger-bg: #1d0e0c; --danger-line: #4a2420; --shadow: none; }
+	body { background: var(--paper); }
+	input, textarea { background: var(--panel); }
+	input::placeholder { color: var(--muted); opacity: .7; }
+	input:focus, textarea:focus { box-shadow: 0 0 0 3px rgba(111,224,169,.25); }
+	.button:hover { box-shadow: 0 8px 18px rgba(0,0,0,.5); }
+	.button-primary, .live-event-arrow, .button-results, .round-result.final, .placement-hero, .suggestion-name mark { color: var(--on-accent); }
+	.button-secondary { background: transparent; }
+	.button-danger { color: var(--danger-ink); background: var(--danger-bg); border-color: var(--danger-line); }
+	.status-banner { background: var(--surface); }
+	.status-banner[data-kind="error"], .participant-error { color: var(--danger-ink); background: var(--danger-bg); }
+	.roster-status .dialog-copy.is-error { color: var(--danger-ink); }
+	.empty-state, .live-events-note { border-color: var(--dash); }
+	.participant.is-changed { box-shadow: 0 0 0 3px rgba(255,125,110,.18); }
+	.competition { border-color: var(--line-soft); }
+	.round, .round-results, .tabs, .suggestion { background: var(--surface); }
+	.heat { color: var(--ink); background: var(--chip); }
+	.round-result.callback { background: rgba(111,224,169,.16); }
+	.round-result.alternate { background: rgba(245,196,81,.16); }
+	.round-result.no-callback { background: rgba(142,152,147,.16); }
+	.tab[aria-selected="true"] { background: var(--chip); box-shadow: none; }
+	.dialog { color: var(--ink); background: var(--panel); border: 1px solid var(--line); box-shadow: 0 24px 80px rgba(0,0,0,.7); }
+	.dialog::backdrop { background: rgba(0,0,0,.65); }
 }
