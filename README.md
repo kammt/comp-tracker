@@ -7,6 +7,7 @@ Instead of searching for each person on the event wall one by one, you build a w
 ## Features
 - **One event, many people:** save an event by its ID, then add the bib numbers of everyone you want to follow.
 - **Everything at a glance:** for each person, see every competition they are entered in, their role (and partner in Strictly competitions), which rounds they made, and their heat numbers.
+- **Results:** once an event publishes results, each round shows the callback outcome or final placement, and *Show results* lists every judge's score (with full judge names) for every round your people danced.
 - **Change highlighting:** after a refresh, people whose results changed are briefly marked as *CHANGED*.
 - **Refresh on demand:** results only update when you press the refresh button, so the app never polls scoring.dance in the background.
 - **Works like an app:** add it to your home screen. The last fetched results stay visible even when the connection drops.

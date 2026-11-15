@@ -1,4 +1,4 @@
-const CACHE = 'comptracker-v5';
+const CACHE = 'comptracker-v6';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', (event) => {
