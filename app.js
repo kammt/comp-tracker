@@ -516,7 +516,10 @@ function renderPlacement(value) {
 function renderResultsView() {
   const participants = state?.results || [];
   const blocks = participants.map(renderParticipantResults).join('');
-  elements.resultsList.innerHTML = blocks || '<div class="empty-state">No results yet. Refresh the watch list once results are published.</div>';
+  const empty = (state?.watchList || []).length
+    ? 'No results yet. Refresh the watch list once results are published.'
+    : 'Add a person to your watch list to see their results.';
+  elements.resultsList.innerHTML = blocks || `<div class="empty-state">${empty}</div>`;
 }
 
 function renderParticipantResults(participant) {
@@ -571,7 +574,9 @@ function hasAnyResults() {
 
 function renderAll() {
   renderResults();
-  elements.showResults.hidden = !(state?.resultsAvailable || hasAnyResults());
+  // Results are shown per watched person, so there is nothing to open until someone is added.
+  const hasPeople = (state?.watchList || []).length > 0;
+  elements.showResults.hidden = !(hasPeople && (state?.resultsAvailable || hasAnyResults()));
   if (!elements.resultsView.hidden) renderResultsView();
 }
 

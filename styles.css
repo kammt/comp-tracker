@@ -2,6 +2,8 @@
 
 :root { --ink: #17231f; --muted: #65736e; --paper: #f7f7f2; --panel: #ffffff; --line: #dce3dc; --mint: #b5edce; --mint-strong: #16835c; --coral: #da5b4d; --amber: #9a6a00; --gold: #f3d36b; --shadow: 0 20px 60px rgba(23, 35, 31, .08); }
 * { box-sizing: border-box; }
+/* Component display rules (e.g. .button-results { display: flex }) would otherwise override the hidden attribute. */
+[hidden] { display: none !important; }
 body { margin: 0; min-width: 320px; color: var(--ink); background: radial-gradient(circle at 10% 0%, #e5f8ea 0, transparent 30rem), var(--paper); background-repeat: no-repeat; font: 16px/1.5 'DM Sans', sans-serif; }
 button, input, textarea { font: inherit; }
 button { cursor: pointer; }
