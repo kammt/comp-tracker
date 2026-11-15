@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
 
-:root { --ink: #17231f; --muted: #65736e; --paper: #f7f7f2; --panel: #ffffff; --line: #dce3dc; --mint: #b5edce; --mint-strong: #16835c; --coral: #da5b4d; --amber: #9a6a00; --gold: #f3d36b; --silver: #d6dce1; --bronze: #e5b088; --honor: #c9dafb; --shadow: 0 20px 60px rgba(23, 35, 31, .08); }
+:root { --ink: #17231f; --muted: #65736e; --paper: #f7f7f2; --panel: #ffffff; --line: #dce3dc; --mint: #b5edce; --mint-strong: #16835c; --coral: #da5b4d; --amber: #9a6a00; --gold: #f3d36b; --silver: #d6dce1; --bronze: #e5b088; --honor: #c9dafb; --shadow: 0 20px 60px rgba(23, 35, 31, .08); --bar: rgba(247,247,242,.88); }
 * { box-sizing: border-box; }
 /* Component display rules (e.g. .button-results { display: flex }) would otherwise override the hidden attribute. */
 [hidden] { display: none !important; }
@@ -135,9 +135,18 @@ input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 
 .suggestion-bib { flex: none; color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
 .suggestion-tag { flex: none; color: var(--mint-strong); font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .suggestions-empty { margin: 0; color: var(--muted); font-size: .9rem; }
-/* Tab bar between the watch list and all rounds */
+/* Tab bar between the watch list and all rounds: a segmented control on wide screens, a bottom bar on phones. */
 .view-tabs { max-width: 420px; margin: 0 0 18px; }
 .view-tabs .tab { padding: 10px; }
+.tab-icon { display: none; width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+@media (max-width: 639px) {
+  .tabs.view-tabs { position: fixed; z-index: 10; right: 0; bottom: 0; left: 0; max-width: none; margin: 0; padding: 6px 12px calc(6px + env(safe-area-inset-bottom)); background: var(--bar); border-top: 1px solid var(--line); border-radius: 0; -webkit-backdrop-filter: blur(18px) saturate(1.6); backdrop-filter: blur(18px) saturate(1.6); }
+  .view-tabs .tab, .view-tabs .tab[aria-selected="true"] { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 2px 4px; background: transparent; box-shadow: none; font-size: .72rem; font-weight: 600; -webkit-tap-highlight-color: transparent; }
+  .view-tabs .tab[aria-selected="true"] { color: var(--mint-strong); font-weight: 700; }
+  .view-tabs .tab-icon { display: block; box-sizing: content-box; padding: 3px 18px; border-radius: 999px; transition: background .2s; }
+  .view-tabs .tab[aria-selected="true"] .tab-icon { background: rgba(22,131,92,.13); }
+  body.has-tab-bar .app-shell { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+}
 /* Rounds open their heat lists or results */
 .round-link { position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; width: 100%; color: inherit; border: 1px solid transparent; text-align: left; transition: border-color .15s, transform .15s; }
 .round-link::after { position: absolute; top: 7px; right: 9px; color: var(--muted); content: '›'; font-weight: 700; line-height: 1; }
@@ -209,7 +218,7 @@ input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 
 @media (prefers-color-scheme: dark) {
 	/* OLED black: a true black page, cards separated by hairlines instead of shadows, and the brand mint kept bright. */
 	:root { --ink: #f6f8f7; --muted: #8e9893; --paper: #000000; --panel: #0d0f0e; --surface: #161918; --chip: #252a28; --line: #242927; --line-soft: #1a1e1c; --dash: #333a37; --on-accent: #08160f;
-		--mint: #b5edce; --mint-strong: #6fe0a9; --coral: #ff7d6e; --amber: #f5c451; --gold: #f3d36b; --silver: #c5cdd4; --bronze: #d89b6b; --honor: #a9c3f2; --danger-ink: #ff9d91; --danger-bg: #1d0e0c; --danger-line: #4a2420; --shadow: none; }
+		--mint: #b5edce; --mint-strong: #6fe0a9; --coral: #ff7d6e; --amber: #f5c451; --gold: #f3d36b; --silver: #c5cdd4; --bronze: #d89b6b; --honor: #a9c3f2; --danger-ink: #ff9d91; --danger-bg: #1d0e0c; --danger-line: #4a2420; --shadow: none; --bar: rgba(0,0,0,.82); }
 	body { background: var(--paper); }
 	input, textarea { background: var(--panel); }
 	input::placeholder { color: var(--muted); opacity: .7; }
@@ -230,6 +239,7 @@ input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 
 	.round-result.alternate { background: rgba(245,196,81,.16); }
 	.round-result.no-callback { background: rgba(142,152,147,.16); }
 	.tab[aria-selected="true"] { background: var(--chip); box-shadow: none; }
+	.view-tabs .tab[aria-selected="true"] .tab-icon { background: rgba(111,224,169,.16); }
 	.dialog { color: var(--ink); background: var(--panel); border: 1px solid var(--line); box-shadow: 0 24px 80px rgba(0,0,0,.7); }
 	.dialog::backdrop { background: rgba(0,0,0,.65); }
 	.round-watch { background: rgba(111,224,169,.14); }

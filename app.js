@@ -87,6 +87,8 @@ function showView(view, tab = null) {
   elements.resultsView.hidden = view !== 'results';
   elements.roundsView.hidden = view !== 'rounds';
   elements.viewTabs.hidden = !tab;
+  // On phones the tab bar is pinned to the bottom, so the page needs room below its content.
+  document.body.classList.toggle('has-tab-bar', Boolean(tab));
   elements.viewTabButtons.forEach((button) => button.setAttribute('aria-selected', String(button.dataset.viewTab === tab)));
 }
 
