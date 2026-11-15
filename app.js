@@ -1,6 +1,7 @@
 // All app state lives in one localStorage record so a reload never loses the event.
 const STORAGE_KEY = 'comptracker-state';
 const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+const HOME_URL = 'https://scoring.dance/enUS/';
 
 const elements = {
   setup: document.querySelector('#setup-view'),
@@ -15,6 +16,7 @@ const elements = {
   eventIdHelp: document.querySelector('#event-id-help'),
   eventIdDialog: document.querySelector('#event-id-dialog'),
   eventPreviewDialog: document.querySelector('#event-preview-dialog'),
+  liveEvents: document.querySelector('#live-events-list'),
   eventLabel: document.querySelector('#event-label'),
   results: document.querySelector('#results'),
   status: document.querySelector('#status-banner'),
@@ -245,6 +247,68 @@ async function fetchParticipant(eventId, query) {
 
 async function fetchEvent(eventId) {
   return parseEventTitle(await fetchWallPage(eventId));
+}
+
+// The scoring.dance start page draws its event cards in the browser from a JSON array
+// handed to `processEvents([...])` in an inline script, so read that array directly.
+function parseHomeEvents(html) {
+  const marker = html.indexOf('processEvents([');
+  if (marker < 0) throw new Error('The scoring.dance start page has changed.');
+  const start = html.indexOf('[', marker);
+  const end = jsonEnd(html, start);
+  if (end < 0) throw new Error('The scoring.dance start page has changed.');
+  const events = JSON.parse(html.slice(start, end));
+  return Array.isArray(events) ? events : [];
+}
+
+// Finds where the JSON array or object starting at `start` ends, skipping brackets inside strings.
+function jsonEnd(text, start) {
+  let depth = 0;
+  let inString = false;
+  for (let index = start; index < text.length; index += 1) {
+    const character = text[index];
+    if (inString) {
+      if (character === '\\') index += 1;
+      else if (character === '"') inString = false;
+    } else if (character === '"') inString = true;
+    else if (character === '[' || character === '{') depth += 1;
+    else if ((character === ']' || character === '}') && --depth === 0) return index + 1;
+  }
+  return -1;
+}
+
+// scoring.dance dates have no time zone ("2026-11-12 00:00:00") and the site reads them in
+// the viewer's local time. Parsed by hand because Safari rejects that format in `new Date()`.
+function parseScoringDate(value) {
+  const parts = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if (!parts) return null;
+  const [, year, month, day, hour = 0, minute = 0, second = 0] = parts;
+  return new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+}
+
+// The same rule the scoring.dance start page uses for its "Lists" button: the event is not
+// cancelled and is running right now.
+function hasListsLink(event, now = new Date()) {
+  if (['cancelled', 'cancelled_corona'].includes(event.event_status)) return false;
+  const from = parseScoringDate(event.dt_event_from);
+  const to = parseScoringDate(event.dt_event_to);
+  return Boolean(from && to && from <= now && now <= to);
+}
+
+function htmlToText(html) {
+  return textOf(new DOMParser().parseFromString(String(html || ''), 'text/html').body);
+}
+
+async function fetchLiveEvents() {
+  const now = new Date();
+  return parseHomeEvents(await fetchScoringPage(HOME_URL))
+    .filter((event) => /^\d+$/.test(String(event.id)) && event.name && hasListsLink(event, now))
+    .map((event) => ({
+      id: String(event.id),
+      name: String(event.name).trim(),
+      dates: htmlToText(event.date_formatted),
+      place: [event.city_name, event.country_name && `(${event.country_name})`].filter(Boolean).join(' '),
+    }));
 }
 
 async function fetchPublishedRoundIds(eventId) {
@@ -524,6 +588,49 @@ function formatTime(value) {
 
 function openAddDialog() { elements.personQuery.value = ''; elements.addDialog.showModal(); elements.personQuery.focus(); }
 
+let liveEventsRequest = 0;
+
+async function loadLiveEvents() {
+  const request = ++liveEventsRequest;
+  elements.liveEvents.innerHTML = '<p class="live-events-note is-loading">Loading current events…</p>';
+  let markup;
+  try {
+    const events = await fetchLiveEvents();
+    markup = events.length
+      ? events.map(renderLiveEvent).join('')
+      : '<p class="live-events-note">No events have lists open right now.</p>';
+  } catch (error) {
+    markup = '<p class="live-events-note">Could not load current events from scoring.dance. You can still enter an event ID below.</p>';
+  }
+  if (request === liveEventsRequest) elements.liveEvents.innerHTML = markup;
+}
+
+function renderLiveEvent(event) {
+  const meta = [event.dates, event.place].filter(Boolean).map(escapeHtml).join(' · ');
+  return `<button class="live-event" type="button" data-event-id="${escapeHtml(event.id)}" data-event-title="${escapeHtml(event.name)}">
+      <span class="live-event-copy"><strong class="live-event-name">${escapeHtml(event.name)}</strong><span class="live-event-meta">${meta ? `${meta} · ` : ''}#${escapeHtml(event.id)}</span></span>
+      <span class="live-event-arrow" aria-hidden="true">→</span>
+    </button>`;
+}
+
+function startEvent(eventId, eventTitle) {
+  state = { version: 1, eventId, eventTitle, watchList: [], results: [], fetchedAt: null, changedCount: 0 };
+  pendingEvent = null;
+  saveState();
+  openDashboard();
+  window.scrollTo(0, 0);
+}
+
+function openSetup() {
+  showView('setup');
+  loadLiveEvents();
+}
+
+elements.liveEvents.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-event-id]');
+  if (button) startEvent(button.dataset.eventId, button.dataset.eventTitle);
+});
+
 elements.setupForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const eventId = normalizeQuery(elements.eventId.value);
@@ -549,11 +656,9 @@ elements.setupForm.addEventListener('submit', async (event) => {
 elements.personQuery.addEventListener('input', keepDigitsOnly);
 elements.continueButton.addEventListener('click', () => {
   if (!pendingEvent) return;
-  state = { version: 1, eventId: pendingEvent.eventId, eventTitle: pendingEvent.eventTitle, watchList: [], results: [], fetchedAt: null, changedCount: 0 };
-  pendingEvent = null;
-  saveState();
+  const { eventId, eventTitle } = pendingEvent;
   elements.eventPreviewDialog.close();
-  openDashboard();
+  startEvent(eventId, eventTitle);
 });
 elements.eventPreviewDialog.addEventListener('close', () => elements.eventId.focus());
 elements.eventIdHelp.addEventListener('click', () => elements.eventIdDialog.showModal());
@@ -616,7 +721,7 @@ elements.confirmForm.addEventListener('submit', (event) => {
   elements.eventPreviewTitle.textContent = '';
   setStatus('', 'info', elements.setupStatus);
   if (location.hash) history.replaceState(null, '', `${location.pathname}${location.search}`);
-  showView('setup');
+  openSetup();
 });
 
 function eventLabelText() {
@@ -641,7 +746,9 @@ function openResultsView() {
 
 // The results view lives at #results so the phone's back gesture returns to the watch list.
 function route() {
-  if (!state) showView('setup');
+  if (!state) {
+    if (elements.setup.hidden) openSetup();
+  }
   else if (location.hash === '#results') openResultsView();
   else openDashboard();
 }

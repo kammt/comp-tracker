@@ -5,7 +5,7 @@ A mobile-friendly web app for keeping track of how your friends are doing at Wes
 Instead of searching for each person on the event wall one by one, you build a watch list of bib numbers once and see everyone's progress on a single page.
 
 ## Features
-- **One event, many people:** save an event by its ID, then add the bib numbers of everyone you want to follow.
+- **One event, many people:** pick an event that is happening now on scoring.dance (or enter its ID), then add the bib numbers of everyone you want to follow.
 - **Everything at a glance:** for each person, see every competition they are entered in, their role (and partner in Strictly competitions), which rounds they made, and their heat numbers.
 - **Results:** once an event publishes results, each round shows the callback outcome or final placement, and *Show results* lists every judge's score (with full judge names) for every round your people danced.
 - **Change highlighting:** after a refresh, people whose results changed are briefly marked as *CHANGED*.
@@ -14,8 +14,8 @@ Instead of searching for each person on the event wall one by one, you build a w
 - **Private by design:** your event and watch list are stored only in your browser's local storage. There is no account and no server.
 
 ## How to use
-1. Open the event on scoring.dance and copy the number from the URL. For example, in `scoring.dance/enUS/events/393/wall` the event ID is `393`.
-2. Enter the event ID in CompTracker and confirm the event name.
+1. Pick your event under *Happening now*. CompTracker lists the events on the scoring.dance start page that have their lists open.
+2. For any other event, open it on scoring.dance and copy the number from the URL instead. For example, in `scoring.dance/enUS/events/393/wall` the event ID is `393`. Enter it in CompTracker and confirm the event name.
 3. Add people by their bib number.
 4. Tap ↻ whenever you want the latest results.
 

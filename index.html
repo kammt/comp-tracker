@@ -17,6 +17,12 @@
         <p class="eyebrow">CompTracker</p>
         <h1 id="setup-title">Keep an eye on your friends.</h1>
         <p class="lede">Save an event once, then pull the latest results whenever you need them.</p>
+        <section class="live-events" aria-labelledby="live-events-title">
+          <p class="eyebrow">ON SCORING.DANCE</p>
+          <h2 id="live-events-title">Happening now</h2>
+          <div id="live-events-list" class="live-events-list" aria-live="polite"></div>
+        </section>
+        <p class="setup-divider"><span>or enter an event ID</span></p>
         <form id="setup-form" class="stack-form">
           <label for="event-id">Event ID</label>
           <input id="event-id" name="eventId" inputmode="numeric" pattern="[0-9]+" placeholder="e.g. 393" required />
