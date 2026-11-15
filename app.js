@@ -1,7 +1,6 @@
 // All app state lives in one localStorage record so a reload never loses the event.
 const STORAGE_KEY = 'comptracker-state';
-const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
-const HOME_URL = 'https://scoring.dance/enUS/';
+const API_URL = 'https://scoring.dance/api/';
 
 const elements = {
   setup: document.querySelector('#setup-view'),
@@ -80,255 +79,172 @@ function keepDigitsOnly(event) {
   event.target.value = event.target.value.replace(/\D/g, '');
 }
 
-function textOf(element) {
-  return element ? element.textContent.replace(/\s+/g, ' ').trim() : '';
-}
-
-function parseParticipant(html, query, eventId) {
-  const documentFragment = new DOMParser().parseFromString(html, 'text/html');
-  const card = [...documentFragment.querySelectorAll('.card')].find((candidate) => /Competitor information/i.test(textOf(candidate)));
-  if (!card) throw new Error(`Bib number ${query} does not exist in event ${eventId}.`);
-
-  const body = card.querySelector('.card-body') || card;
-  const name = textOf(body.querySelector('table td')) || query;
-  // The wall's side menu links every round of the event as "<competition> <round>".
-  // It is the fallback for round names and IDs, which the competitor card sometimes leaves out.
-  const navRounds = [...documentFragment.querySelectorAll('#wallnav a[href*="/wall/"]')]
-    .map((link) => ({ id: roundIdFromHref(link.getAttribute('href')), label: textOf(link) }))
-    .filter((round) => round.id);
-  const competitions = [...body.querySelectorAll('.mt-4')].map((heading) => {
-    const competition = { title: textOf(heading.querySelector('b')) || textOf(heading), role: '', partner: '', rounds: [] };
-    const competitionText = getCompetitionText(heading);
-    competition.role = competitionText.match(/Role:\s*([^\n]+)/i)?.[1]?.trim() || '';
-    competition.partner = competitionText.match(/Partner:\s*([^\n]+)/i)?.[1]?.trim() || '';
-    const competitionNavRounds = navRounds
-      .filter((round) => round.label.startsWith(`${competition.title} `))
-      .map((round) => ({ id: round.id, name: round.label.slice(competition.title.length).trim() }));
-    let sibling = heading.nextElementSibling;
-    while (sibling && !sibling.classList.contains('mt-4')) {
-      if (sibling.classList.contains('row')) {
-        competition.rounds = [...sibling.children].map((roundElement, index) => parseRound(roundElement, competitionNavRounds[index])).filter(Boolean);
-      }
-      sibling = sibling.nextElementSibling;
-    }
-    return competition;
-  });
-  const resultsAvailable = Boolean(documentFragment.querySelector(`a[href*="/events/${eventId}/results"]`));
-
-  return { query, name, competitions, resultsAvailable };
-}
-
-function roundIdFromHref(href) {
-  return href?.match(/\/(?:wall|results)\/(\d+)\.html/)?.[1] || null;
-}
-
-function parseEventTitle(html) {
-  const documentFragment = new DOMParser().parseFromString(html, 'text/html');
-  const eventHeading = documentFragment.querySelector('main h1');
-  const eventTitle = textOf(eventHeading).replace(/\s*(?:-|:)\s*marshalling lists.*$/i, '').trim();
-  if (!eventTitle || /^404\b/i.test(eventTitle) || /^not found$/i.test(eventTitle)) throw new Error('No event found for that ID.');
-  return eventTitle;
-}
-
-function getCompetitionText(heading) {
-  const parts = [];
-  let node = heading.nextSibling;
-  while (node && !(node.nodeType === Node.ELEMENT_NODE && node.classList.contains('mt-4'))) {
-    if (node.nodeType === Node.TEXT_NODE) parts.push(node.textContent);
-    if (node.nodeType === Node.ELEMENT_NODE && node.tagName === 'BR') parts.push('\n');
-    node = node.nextSibling;
+// scoring.dance serves its data as JSON at /api/<method>.json (the same API it sells on
+// RapidAPI). Errors come back as `err.id` other than 0, often with HTTP 200.
+async function apiGet(method, params) {
+  const response = await fetch(`${API_URL}${method}.json?${new URLSearchParams(params)}`, { cache: 'no-store' });
+  let body;
+  try {
+    body = await response.json();
+  } catch (error) {
+    throw new Error(`scoring.dance returned error code ${response.status}.`);
   }
-  return parts.join('').replace(/\s*\n\s*/g, '\n').trim();
+  if (body?.err?.id) {
+    const error = new Error(body.err.msg || `scoring.dance returned error ${body.err.id}.`);
+    error.code = body.err.id;
+    throw error;
+  }
+  if (!response.ok) throw new Error(`scoring.dance returned error code ${response.status}.`);
+  return body.result;
 }
 
-function parseRound(roundElement, navRound) {
-  const statusElement = roundElement.querySelector('b, span.text-danger');
-  if (!statusElement) return null;
-  const statusText = textOf(statusElement);
-  const roundName = statusText.replace(/^[✓×]\s*/, '').trim() || navRound?.name || '';
-  if (!roundName) return null;
-  const id = roundIdFromHref(roundElement.querySelector('a[href*="/wall/"]')?.getAttribute('href')) || navRound?.id || null;
-  const isIn = !roundElement.querySelector('.text-danger') && !/did not|not made/i.test(statusText);
-  const heat = textOf(roundElement.querySelector('.badge'));
-  return { id, name: roundName, status: isIn ? 'in' : 'out', heat };
+const API_PARTICIPANT_NOT_FOUND = 95;
+const ROLE_NAMES = { L: 'Leader', F: 'Follower' };
+
+// Every round of the event, in running order. Round names are "<competition> <round>".
+function fetchEventRounds(eventId) {
+  return apiGet('rounds.list', { event: eventId }).then((rounds) => rounds || []);
 }
 
-// A results page holds one table per role in prelims and semis, and one table in finals.
-// Each judge column header carries the judge's full name in its title attribute.
-function parseRoundResults(html, roundId) {
-  const documentFragment = new DOMParser().parseFromString(html, 'text/html');
-  const container = documentFragment.querySelector('#anzeige') || documentFragment.body;
-  const title = textOf(container.querySelector('h2'));
-  const tables = [...container.querySelectorAll('table')].map(parseResultTable).filter((table) => table && table.rows.length);
-  if (!tables.length) throw new Error(`No results found for round ${roundId}.`);
-  return { id: roundId, title, tables };
+async function fetchParticipant(eventId, query, eventRounds) {
+  let info;
+  try {
+    info = await apiGet('participant.info', { event: eventId, bib: query });
+  } catch (error) {
+    if (error.code === API_PARTICIPANT_NOT_FOUND) throw new Error(`Bib number ${query} does not exist in event ${eventId}.`);
+    throw error;
+  }
+  const competitions = (info.competitions || []).map((competition) => ({
+    title: competition.name,
+    role: ROLE_NAMES[competition.role] || competition.role || '',
+    partner: competition.partner_name || '',
+    rounds: competitionRounds(competition, eventRounds),
+  }));
+  return { query, name: info.name || query, competitions };
 }
 
-function parseResultTable(table) {
-  const headers = [...table.querySelectorAll('thead th')];
-  const judgeIndexes = headers.map((header, index) => (header.hasAttribute('title') ? index : -1)).filter((index) => index >= 0);
-  if (!judgeIndexes.length) return null;
-  const judges = judgeIndexes.map((index) => {
-    const fullTitle = headers[index].getAttribute('title').trim();
-    const chief = /chief\s*judge/i.test(fullTitle) || Boolean(headers[index].querySelector('.fa-crown'));
-    return { initials: textOf(headers[index]), name: fullTitle.replace(/\s*\(chief\s*judge\)\s*$/i, '').trim(), chief };
+// A participant only lists the rounds they made it into, so the competition's other rounds
+// (taken from the event's round list) are the ones they are out of.
+function competitionRounds(competition, eventRounds) {
+  const own = new Map((competition.rounds || []).filter((round) => !round.is_canceled).map((round) => [String(round.id), round]));
+  const prefix = `${competition.name} `;
+  const listed = eventRounds
+    .filter((round) => round.name.startsWith(prefix))
+    .map((round) => ({ id: String(round.id), name: round.name.slice(prefix.length).trim() }));
+  const listedIds = new Set(listed.map((round) => round.id));
+  const unlisted = [...own.values()].filter((round) => !listedIds.has(String(round.id))).map((round) => ({ id: String(round.id), name: round.type }));
+  return [...listed, ...unlisted].map(({ id, name }) => {
+    const round = own.get(id);
+    const isIn = Boolean(round?.is_in);
+    return { id, name, status: isIn ? 'in' : 'out', heat: isIn ? (round.heats || []).map((heat) => `heat${heat}`).join(' ') : '' };
   });
-  const bibIndex = headers.findIndex((header) => header.querySelector('img[alt*="bib" i], source[srcset*="bibnumber"]'));
-  const nameIndex = bibIndex >= 0 ? bibIndex + 1 : 0;
-  const partnerIndex = nameIndex + 1 < judgeIndexes[0] ? nameIndex + 1 : -1;
-  const resultIndex = judgeIndexes[judgeIndexes.length - 1] + 1;
-  const rows = [...table.querySelectorAll('tbody tr')].map((row) => {
-    const cells = row.children;
-    return {
-      bib: bibIndex >= 0 ? textOf(cells[bibIndex]) : '',
-      name: textOf(cells[nameIndex]),
-      partner: partnerIndex >= 0 ? textOf(cells[partnerIndex]) : '',
-      state: row.dataset.state || '',
-      result: textOf(cells[resultIndex]),
-      scores: judgeIndexes.map((index) => ({ value: textOf(cells[index]), tiebreak: Boolean(cells[index]?.querySelector('.fa-gavel')) })),
-    };
-  }).filter((row) => row.name);
-  const isFinal = rows.some((row) => /^\d+\s*(st|nd|rd|th)$/i.test(row.result));
-  return { kind: isFinal ? 'final' : 'callback', judges, rows };
 }
 
-// Names are compared without accents, case or word order: results pages show followers
-// in finals by name only, and some pages list family names first.
-function nameKey(name) {
-  return String(name || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-    .replace(/ł/g, 'l').replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(' ').filter(Boolean).sort().join(' ');
+const PRELIM_SCORE_LABELS = { YES: 'Yes', NO: 'No' };
+
+function prelimScoreLabel(value) {
+  if (!value) return '';
+  return PRELIM_SCORE_LABELS[value] || String(value).replace(/^A(\d+)$/, 'Alt$1');
+}
+
+function ordinal(number) {
+  const tens = number % 100;
+  const suffix = tens >= 11 && tens <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' })[number % 10] || 'th';
+  return `${number}${suffix}`;
+}
+
+// Prelims and semis have one list per role, finals a single list of couples.
+// A chief judge only scores to break a tie, and that score is in `raws`.
+async function fetchRoundResults(roundId) {
+  const round = await apiGet('round.result', { round: roundId });
+  const kind = round.is_final ? 'final' : 'callback';
+  const tables = (round.lists || []).map((list) => ({
+    judges: list.judges.map((judge) => ({ initials: judge.name.short, name: judge.name.long, chief: Boolean(judge.cj) })),
+    rows: list.rows.map((row) => {
+      const marks = (kind === 'final' ? row.places : row.prelimscores) || [];
+      return {
+        bib: String(row.dancer?.bib ?? ''),
+        name: row.dancer?.fullname || '',
+        partnerBib: String(row.partner?.bib ?? ''),
+        partnerName: row.partner?.fullname || '',
+        state: row.state || '',
+        result: kind === 'final' ? ordinal(row.total) : String(row.total ?? ''),
+        placement: kind === 'final' ? row.total : null,
+        scores: list.judges.map((judge, index) => {
+          const raw = row.raws?.[index];
+          if (raw !== null && raw !== undefined) return { value: String(raw), tiebreak: true };
+          const mark = marks[index];
+          return { value: kind === 'final' ? String(mark ?? '') : prelimScoreLabel(mark), tiebreak: false };
+        }),
+      };
+    }),
+  })).filter((table) => table.rows.length);
+  if (!tables.length) throw new Error(`No results found for round ${roundId}.`);
+  return { id: String(roundId), kind, tables };
 }
 
 function findPersonResult(page, participant) {
-  const key = nameKey(participant.name);
-  const candidates = page.tables.flatMap((table) => table.rows.map((row) => ({ table, row })));
-  const match = candidates.find(({ row }) => row.bib && row.bib === participant.query)
-    || candidates.find(({ row }) => key && nameKey(row.name) === key)
-    || candidates.find(({ row }) => key && row.partner && nameKey(row.partner) === key);
-  if (!match) return { notFound: true };
-  const { table, row } = match;
-  const isPartnerColumn = row.bib !== participant.query && nameKey(row.name) !== key;
-  return {
-    kind: table.kind,
-    value: row.result,
-    placement: table.kind === 'final' ? parseInt(row.result, 10) || null : null,
-    fieldSize: table.rows.length,
-    state: row.state,
-    partner: isPartnerColumn ? row.name : row.partner,
-    judges: table.judges.map((judge, index) => ({ ...judge, score: row.scores[index]?.value || '', tiebreak: Boolean(row.scores[index]?.tiebreak) })),
-  };
-}
-
-function scoringUrl(eventId, path) {
-  return `https://scoring.dance/enUS/events/${encodeURIComponent(eventId)}/${path}`;
-}
-
-async function fetchWallPage(eventId, search = '') {
-  return fetchScoringPage(scoringUrl(eventId, `wall${search ? `?${search}` : ''}`));
-}
-
-async function fetchScoringPage(target) {
-  let response;
-  try {
-    response = await fetch(target, { cache: 'no-store', headers: { Accept: 'text/html' } });
-  } catch (directError) {
-    // GitHub Pages cannot proxy cross-origin HTML. The fallback keeps the app usable
-    // when scoring.dance does not expose CORS headers, while preserving a direct request first.
-    response = await fetch(`${CORS_PROXY}${encodeURIComponent(target)}`, { cache: 'no-store' });
+  const bib = participant.query;
+  for (const table of page.tables) {
+    const row = table.rows.find((candidate) => candidate.bib === bib || candidate.partnerBib === bib);
+    if (!row) continue;
+    return {
+      kind: page.kind,
+      value: row.result,
+      placement: row.placement,
+      fieldSize: table.rows.length,
+      state: row.state,
+      partner: row.bib === bib ? row.partnerName : row.name,
+      judges: table.judges.map((judge, index) => ({ ...judge, score: row.scores[index]?.value || '', tiebreak: Boolean(row.scores[index]?.tiebreak) })),
+    };
   }
-  if (!response.ok) throw new Error(`scoring.dance returned error code ${response.status}.`);
-  return response.text();
+  return { notFound: true };
 }
 
-async function fetchParticipant(eventId, query) {
-  const html = await fetchWallPage(eventId, new URLSearchParams({ q: query }));
-  return parseParticipant(html, query, eventId);
+// One request returns every public event (a few hundred), newest first.
+function fetchEvents() {
+  return apiGet('events.list', { limit: 1000 }).then((events) => events || []);
 }
 
 async function fetchEvent(eventId) {
-  return parseEventTitle(await fetchWallPage(eventId));
+  const event = (await fetchEvents()).find((item) => String(item.id) === String(eventId));
+  if (event) return String(event.name).trim();
+  // Events left out of the public list can still have rounds.
+  if ((await fetchEventRounds(eventId)).length) return `Event #${eventId}`;
+  throw new Error('No event found for that ID.');
 }
 
-// The scoring.dance start page draws its event cards in the browser from a JSON array
-// handed to `processEvents([...])` in an inline script, so read that array directly.
-function parseHomeEvents(html) {
-  const marker = html.indexOf('processEvents([');
-  if (marker < 0) throw new Error('The scoring.dance start page has changed.');
-  const start = html.indexOf('[', marker);
-  const end = jsonEnd(html, start);
-  if (end < 0) throw new Error('The scoring.dance start page has changed.');
-  const events = JSON.parse(html.slice(start, end));
-  return Array.isArray(events) ? events : [];
+// The API gives the event's real start (local midnight) and end (local 23:59) as Unix times
+// but not its time zone. Shifting each by 12 hours towards the middle of the event and
+// reading the date in UTC gives the event's own calendar dates for any time zone.
+function eventDates(event) {
+  const start = new Date((event.start.unix + 12 * 3600) * 1000);
+  const end = new Date((event.end.unix - 12 * 3600) * 1000);
+  const format = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  return end > start ? format.formatRange(start, end) : format.format(start);
 }
 
-// Finds where the JSON array or object starting at `start` ends, skipping brackets inside strings.
-function jsonEnd(text, start) {
-  let depth = 0;
-  let inString = false;
-  for (let index = start; index < text.length; index += 1) {
-    const character = text[index];
-    if (inString) {
-      if (character === '\\') index += 1;
-      else if (character === '"') inString = false;
-    } else if (character === '"') inString = true;
-    else if (character === '[' || character === '{') depth += 1;
-    else if ((character === ']' || character === '}') && --depth === 0) return index + 1;
-  }
-  return -1;
-}
-
-// scoring.dance dates have no time zone ("2026-11-12 00:00:00") and the site reads them in
-// the viewer's local time. Parsed by hand because Safari rejects that format in `new Date()`.
-function parseScoringDate(value) {
-  const parts = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
-  if (!parts) return null;
-  const [, year, month, day, hour = 0, minute = 0, second = 0] = parts;
-  return new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
-}
-
-// The same rule the scoring.dance start page uses for its "Lists" button: the event is not
-// cancelled and is running right now.
-function hasListsLink(event, now = new Date()) {
-  if (['cancelled', 'cancelled_corona'].includes(event.event_status)) return false;
-  const from = parseScoringDate(event.dt_event_from);
-  const to = parseScoringDate(event.dt_event_to);
-  return Boolean(from && to && from <= now && now <= to);
-}
-
-function htmlToText(html) {
-  return textOf(new DOMParser().parseFromString(String(html || ''), 'text/html').body);
-}
-
+// Same rule as the scoring.dance start page's "Lists" button: the event is running right now.
 async function fetchLiveEvents() {
-  const now = new Date();
-  return parseHomeEvents(await fetchScoringPage(HOME_URL))
-    .filter((event) => /^\d+$/.test(String(event.id)) && event.name && hasListsLink(event, now))
+  const now = Date.now() / 1000;
+  return (await fetchEvents())
+    .filter((event) => /^\d+$/.test(String(event.id)) && event.name && event.start?.unix <= now && now <= event.end?.unix)
     .map((event) => ({
       id: String(event.id),
       name: String(event.name).trim(),
-      dates: htmlToText(event.date_formatted),
-      place: [event.city_name, event.country_name && `(${event.country_name})`].filter(Boolean).join(' '),
+      dates: eventDates(event),
+      place: event.country || '',
     }));
 }
 
-async function fetchPublishedRoundIds(eventId) {
-  const html = await fetchScoringPage(scoringUrl(eventId, 'results/'));
-  const documentFragment = new DOMParser().parseFromString(html, 'text/html');
-  return new Set([...documentFragment.querySelectorAll('a[href*="/results/"]')].map((link) => roundIdFromHref(link.getAttribute('href'))).filter(Boolean));
-}
-
-async function fetchRoundResults(eventId, roundId) {
-  return parseRoundResults(await fetchScoringPage(scoringUrl(eventId, `results/${roundId}.html`)), roundId);
-}
-
 // Fetches each published round the watched people danced in once, however many of them were in it.
-async function fetchResultPages(eventId, participants) {
+async function fetchResultPages(eventRounds, participants) {
   const pages = new Map();
-  const published = await fetchPublishedRoundIds(eventId);
+  const published = new Set(eventRounds.filter((round) => round.results_published).map((round) => String(round.id)));
   const roundIds = [...new Set(participants.flatMap((participant) => participant.competitions.flatMap((competition) => competition.rounds
-    .filter((round) => round.status === 'in' && round.id && published.has(round.id))
+    .filter((round) => round.status === 'in' && published.has(round.id))
     .map((round) => round.id))))];
-  const settled = await Promise.allSettled(roundIds.map((roundId) => fetchRoundResults(eventId, roundId)));
+  const settled = await Promise.allSettled(roundIds.map(fetchRoundResults));
   settled.forEach((item, index) => { if (item.status === 'fulfilled') pages.set(roundIds[index], item.value); });
   return { pages, failed: settled.filter((item) => item.status === 'rejected').length };
 }
@@ -400,15 +316,17 @@ async function runRefresh() {
   setRefreshing(true);
   setStatus(`Refreshing ${watchList.length} ${watchList.length === 1 ? 'person' : 'people'}…`);
   try {
-    const settled = await Promise.allSettled(watchList.map((query) => fetchParticipant(current.eventId, query)));
+    // Without the round list people still load, just without the rounds they are out of.
+    const eventRounds = await fetchEventRounds(current.eventId).catch(() => null);
+    const settled = await Promise.allSettled(watchList.map((query) => fetchParticipant(current.eventId, query, eventRounds || [])));
     const loaded = settled.filter((item) => item.status === 'fulfilled').map((item) => item.value);
-    const resultsAvailable = loaded.length ? loaded.some((participant) => participant.resultsAvailable) : Boolean(current.resultsAvailable);
+    const resultsAvailable = eventRounds ? eventRounds.some((round) => round.results_published) : Boolean(current.resultsAvailable);
     let resultPages = null;
-    let resultsFailed = false;
-    if (resultsAvailable && loaded.length) {
+    let resultsFailed = resultsAvailable && !eventRounds;
+    if (resultsAvailable && eventRounds && loaded.length) {
       setStatus('Loading results…');
       try {
-        const fetched = await fetchResultPages(current.eventId, loaded);
+        const fetched = await fetchResultPages(eventRounds, loaded);
         resultPages = fetched.pages;
         resultsFailed = fetched.failed > 0;
       } catch (error) {
@@ -423,8 +341,7 @@ async function runRefresh() {
       const query = watchList[index];
       const oldResult = previousResults.find((result) => result.query === query);
       if (item.status === 'fulfilled') {
-        const { resultsAvailable: _ignored, ...fetchedParticipant } = item.value;
-        const participant = attachResults(fetchedParticipant, resultPages, oldResult);
+        const participant = attachResults(item.value, resultPages, oldResult);
         const changed = Boolean(oldResult && !oldResult.neverLoaded && !sameParticipant(oldResult, participant));
         if (changed) changedCount += 1;
         return { ...participant, changed };

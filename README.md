@@ -11,10 +11,11 @@ Instead of searching for each person on the event wall one by one, you build a w
 - **Change highlighting:** after a refresh, people whose results changed are briefly marked as *CHANGED*.
 - **Refresh on demand:** results only update when you press the refresh button, so the app never polls scoring.dance in the background.
 - **Works like an app:** add it to your home screen. The last fetched results stay visible even when the connection drops.
+- **Light on traffic:** CompTracker reads scoring.dance's JSON API (`scoring.dance/api/`) instead of loading whole web pages.
 - **Private by design:** your event and watch list are stored only in your browser's local storage. There is no account and no server.
 
 ## How to use
-1. Pick your event under *Happening now*. CompTracker lists the events on the scoring.dance start page that have their lists open.
+1. Pick your event under *Happening now*. CompTracker lists the scoring.dance events that are running right now.
 2. For any other event, open it on scoring.dance and copy the number from the URL instead. For example, in `scoring.dance/enUS/events/393/wall` the event ID is `393`. Enter it in CompTracker and confirm the event name.
 3. Add people by their bib number.
 4. Tap ↻ whenever you want the latest results.
