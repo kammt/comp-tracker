@@ -113,6 +113,15 @@ input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 
 .judge-name em { display: block; font-style: normal; font-weight: 700; }
 .judge.chief { background: transparent; border: 1px dashed var(--line); }
 .dashboard-actions { display: grid; gap: 10px; margin-top: 24px; }
+/* Extended floating action button; sits above the bottom tab bar on phones. */
+.fab { position: fixed; z-index: 11; right: max(16px, env(safe-area-inset-right)); bottom: calc(24px + env(safe-area-inset-bottom)); display: inline-flex; align-items: center; gap: 8px; height: 56px; padding: 0 22px 0 18px; color: var(--ink); background: var(--mint); border: 0; border-radius: 18px; box-shadow: 0 10px 28px rgba(23,35,31,.22), 0 2px 6px rgba(23,35,31,.12); font-weight: 700; -webkit-tap-highlight-color: transparent; transition: transform .15s, box-shadow .15s; animation: fab-enter .3s ease-out both; }
+.fab svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.fab:hover { transform: translateY(-2px); box-shadow: 0 14px 32px rgba(23,35,31,.26), 0 3px 8px rgba(23,35,31,.14); }
+.fab:active { transform: scale(.96); }
+.fab:focus-visible { outline: 3px solid var(--mint-strong); outline-offset: 3px; }
+/* Room below the last card so the button never covers it. */
+body.has-fab .app-shell { padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
+@keyframes fab-enter { from { opacity: 0; transform: scale(.85) translateY(8px); } to { opacity: 1; transform: none; } }
 .dialog { width: min(calc(100% - 32px), 480px); border: 0; border-radius: 16px; padding: 22px; box-shadow: 0 24px 80px rgba(23,35,31,.22); }
 .dialog::backdrop { background: rgba(23,35,31,.38); backdrop-filter: blur(3px); }.dialog-heading { display: flex; justify-content: space-between; margin-bottom: 12px; }.close-button { width: 34px; height: 34px; font-size: 1.35rem; }.dialog-actions { display: grid; gap: 10px; }
 .icon-button.is-loading { animation: spin .8s linear infinite; }
@@ -146,6 +155,8 @@ input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 
   .view-tabs .tab-icon { display: block; box-sizing: content-box; padding: 3px 18px; border-radius: 999px; transition: background .2s; }
   .view-tabs .tab[aria-selected="true"] .tab-icon { background: rgba(22,131,92,.13); }
   body.has-tab-bar .app-shell { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  body.has-tab-bar .fab { bottom: calc(84px + env(safe-area-inset-bottom)); }
+  body.has-tab-bar.has-fab .app-shell { padding-bottom: calc(164px + env(safe-area-inset-bottom)); }
 }
 /* Rounds open their heat lists or results */
 .round-link { position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; width: 100%; color: inherit; border: 1px solid transparent; text-align: left; transition: border-color .15s, transform .15s; }
@@ -211,7 +222,7 @@ input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 
 .standing .round-result { margin-top: 0; white-space: nowrap; }
 .standing.is-watched .mark { background: rgba(255,255,255,.7); }
 @keyframes focus-pulse { 0% { outline-offset: 6px; outline-color: transparent; } 40% { outline-offset: 2px; outline-color: var(--mint-strong); } }
-@media (min-width: 640px) { .app-shell { padding-top: 60px; }.dashboard-actions { grid-template-columns: 1fr auto; }.dialog-actions { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 640px) { .app-shell { padding-top: 60px; }.dashboard-actions { justify-items: start; }.dialog-actions { grid-template-columns: 1fr 1fr; } }
 @keyframes enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -224,6 +235,7 @@ input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 
 	input::placeholder { color: var(--muted); opacity: .7; }
 	input:focus, textarea:focus { box-shadow: 0 0 0 3px rgba(111,224,169,.25); }
 	.button:hover { box-shadow: 0 8px 18px rgba(0,0,0,.5); }
+	.fab { color: var(--on-accent); box-shadow: 0 10px 28px rgba(0,0,0,.6); }
 	.button-primary, .live-event-arrow, .button-results, .round-result.final, .placement-hero, .suggestion-name mark { color: var(--on-accent); }
 	.button-secondary { background: transparent; }
 	.button-danger { color: var(--danger-ink); background: var(--danger-bg); border-color: var(--danger-line); }

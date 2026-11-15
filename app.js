@@ -21,7 +21,8 @@ const elements = {
   status: document.querySelector('#status-banner'),
   refresh: document.querySelector('#refresh-button'),
   addButton: document.querySelector('#add-person-button'),
-  resetButton: document.querySelector('#reset-button'),
+  resetButtons: document.querySelectorAll('.reset-event-button'),
+  roundsActions: document.querySelector('#rounds-actions'),
   addDialog: document.querySelector('#add-dialog'),
   closeAddDialog: document.querySelector('#close-add-dialog'),
   addForm: document.querySelector('#add-form'),
@@ -87,6 +88,8 @@ function showView(view, tab = null) {
   elements.resultsView.hidden = view !== 'results';
   elements.roundsView.hidden = view !== 'rounds';
   elements.viewTabs.hidden = !tab;
+  elements.addButton.hidden = view !== 'dashboard';
+  document.body.classList.toggle('has-fab', view === 'dashboard');
   // On phones the tab bar is pinned to the bottom, so the page needs room below its content.
   document.body.classList.toggle('has-tab-bar', Boolean(tab));
   elements.viewTabButtons.forEach((button) => button.setAttribute('aria-selected', String(button.dataset.viewTab === tab)));
@@ -916,13 +919,13 @@ elements.nameForm.addEventListener('submit', (event) => {
   const first = elements.nameSuggestions.querySelector('[data-bib]');
   if (first) addToWatchList(first.dataset.bib);
 });
-elements.resetButton.addEventListener('click', () => {
+elements.resetButtons.forEach((button) => button.addEventListener('click', () => {
   pendingRemoval = null;
   elements.confirmTitle.textContent = 'Reset this event?';
   elements.confirmCopy.textContent = 'This removes the saved event, watch list, and cached results from this device.';
   elements.confirmAction.textContent = 'Reset everything';
   elements.confirmDialog.showModal();
-});
+}));
 elements.closeConfirmDialog.addEventListener('click', () => elements.confirmDialog.close());
 elements.confirmForm.addEventListener('submit', (event) => {
   if (event.submitter?.value !== 'confirm') return;
@@ -1103,6 +1106,8 @@ function openRoundsView(params) {
 function renderRoundsView() {
   const roundId = roundsParams.get('round');
   setStatus(roundsError, 'error', elements.roundsStatus);
+  // Reset sits at the bottom of the round list only, not inside a single round.
+  elements.roundsActions.hidden = Boolean(roundId);
   if (roundId) renderRoundDetail(roundId);
   else renderRoundIndex();
 }

@@ -51,9 +51,8 @@
         <p class="field-note refresh-note">Results do not refresh automatically. Use the refresh button above (not the browser's refresh button) to fetch the latest updates.</p>
         <button id="show-results-button" class="button button-results" type="button" hidden><span aria-hidden="true">🏆</span> Show results</button>
         <section id="results" class="results" aria-live="polite"></section>
-        <section class="dashboard-actions" aria-label="Manage watch list">
-          <button id="add-person-button" class="button button-secondary" type="button"><span aria-hidden="true">＋</span> Add person</button>
-          <button id="reset-button" class="button button-danger" type="button">Reset event</button>
+        <section class="dashboard-actions" aria-label="Manage event">
+          <button class="button button-danger reset-event-button" type="button">Reset event</button>
         </section>
       </section>
 
@@ -84,8 +83,13 @@
         <div id="rounds-status" class="status-banner" role="status" hidden></div>
         <p id="rounds-note" class="field-note"></p>
         <section id="rounds-content" class="results" aria-live="polite"></section>
+        <section id="rounds-actions" class="dashboard-actions" aria-label="Manage event">
+          <button class="button button-danger reset-event-button" type="button">Reset event</button>
+        </section>
       </section>
     </main>
+    <!-- Outside <main>: the views' entry animation would otherwise make it scroll with the page. -->
+    <button id="add-person-button" class="fab" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Add person</span></button>
 
     <dialog id="add-dialog" class="dialog">
       <div class="dialog-heading"><div><p class="eyebrow">WATCH LIST</p><h2>Add a person</h2></div><button id="close-add-dialog" class="close-button" type="button" aria-label="Close">×</button></div>
