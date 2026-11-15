@@ -145,12 +145,14 @@ input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 
 /* Touch screens keep :hover after a tap, so only real pointers get the hover lift. */
 @media (hover: hover) { .round-link:hover { border-color: var(--mint-strong); transform: translateY(-1px); } }
 .round-link .round-name { padding-right: 12px; }
-.round-kind { display: block; margin-top: 4px; font-size: .8rem; font-weight: 700; }
-.round-kind.results { color: var(--mint-strong); }
-.round-kind.heats { color: var(--ink); }
-.round-kind.pending { color: var(--muted); font-weight: 500; }
+/* Round status stays quiet; the only accent on a card is the "of yours" pill. */
+.round-meta { display: block; margin-top: 4px; color: var(--muted); font-size: .78rem; }
+.round-kind { font-weight: 500; }
+.round-kind.heats { color: var(--ink); font-weight: 600; }
+.round-meta > * { display: block; }
+.round-meta .round-time { font-size: .75rem; }
 .round-time { display: block; color: var(--muted); font-size: .75rem; font-variant-numeric: tabular-nums; }
-.round-watch { display: block; margin-top: 4px; color: var(--mint-strong); font-size: .72rem; font-weight: 700; }
+.round-watch { display: inline-block; margin-top: 7px; padding: 2px 8px; color: var(--mint-strong); background: rgba(22,131,92,.12); border-radius: 999px; font-size: .72rem; font-weight: 700; }
 .round-results-link { display: block; margin-top: 8px; font-size: .82rem; font-weight: 700; text-decoration: none; }
 .round-results.is-focused, .participant.is-focused, .lineup-person.is-focused, .standing.is-focused { outline: 2px solid var(--mint-strong); outline-offset: 2px; animation: focus-pulse 1.6s ease-out 2; }
 .topbar h1.is-round { font-size: clamp(1.9rem, 7vw, 3.4rem); }
@@ -230,7 +232,7 @@ input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 
 	.tab[aria-selected="true"] { background: var(--chip); box-shadow: none; }
 	.dialog { color: var(--ink); background: var(--panel); border: 1px solid var(--line); box-shadow: 0 24px 80px rgba(0,0,0,.7); }
 	.dialog::backdrop { background: rgba(0,0,0,.65); }
-	.round-link .round-kind.heats { color: var(--ink); }
+	.round-watch { background: rgba(111,224,169,.14); }
 	.standing { background: var(--surface); }
 	.mark { background: var(--chip); }
 	.lineup-person.is-watched, .standing.is-watched { color: var(--ink); background: rgba(111,224,169,.18); box-shadow: inset 3px 0 0 var(--mint-strong); }

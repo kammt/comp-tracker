@@ -1130,7 +1130,7 @@ function renderRoundIndex() {
     const people = watched.get(round.id) || [];
     const kind = round.published ? '<span class="round-kind results">Results</span>' : round.heats ? `<span class="round-kind heats">${round.heats} heat${round.heats === 1 ? '' : 's'}</span>` : '<span class="round-kind pending">Not out yet</span>';
     const time = roundTime(round.start);
-    return `<button class="round round-link" type="button" data-open-round="${escapeHtml(round.id)}"><span class="round-name">${escapeHtml(roundCompetition(round.name).round || round.name)}</span>${kind}${time ? `<span class="round-time">${escapeHtml(time)}</span>` : ''}${people.length ? `<span class="round-watch" title="${escapeHtml(people.map((person) => person.name).join(', '))}">● ${people.length} of yours</span>` : ''}</button>`;
+    return `<button class="round round-link" type="button" data-open-round="${escapeHtml(round.id)}"><span class="round-name">${escapeHtml(roundCompetition(round.name).round || round.name)}</span><span class="round-meta">${kind}${time ? `<span class="round-time">${escapeHtml(time)}</span>` : ''}</span>${people.length ? `<span class="round-watch" title="${escapeHtml(people.map((person) => person.name).join(', '))}">${people.length} of yours</span>` : ''}</button>`;
   }).join('')}</div></section>`).join('')}</article>`;
 }
 
