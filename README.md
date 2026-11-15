@@ -8,6 +8,8 @@ Instead of searching for each person on the event wall one by one, you build a w
 - **One event, many people:** pick an event that is happening now on scoring.dance (or enter its ID), then add the bib numbers of everyone you want to follow.
 - **Everything at a glance:** for each person, see every competition they are entered in, their role (and partner in Strictly competitions), which rounds they made, and their heat numbers.
 - **Find people by name:** load the event's competitor list once, then type part of a first or last name and pick from the suggestions. The list shows when it was loaded and can be reloaded to pick up late changes.
+- **All rounds:** the *All rounds* tab lists every round of the event. Open one to see its heat lists (who dances in which heat, with your people highlighted), or the full results with every judge's marks once they are published.
+- **Tap a round:** tapping a round on someone's card opens that round's heat lists on their heat, or, once results are out, jumps to their scores on the results page.
 - **Results:** once an event publishes results, each round shows the callback outcome or final placement, and *Show results* lists every judge's score (with full judge names) for every round your people danced.
 - **Change highlighting:** after a refresh, people whose results changed are briefly marked as *CHANGED*.
 - **Refresh on demand:** results only update when you press the refresh button, so the app never polls scoring.dance in the background.
@@ -20,6 +22,7 @@ Instead of searching for each person on the event wall one by one, you build a w
 2. For any other event, open it on scoring.dance and copy the number from the URL instead. For example, in `scoring.dance/enUS/events/393/wall` the event ID is `393`. Enter it in CompTracker and confirm the event name.
 3. Add people by their bib number, or switch to *By name*, load the competitor list and search for them.
 4. Tap ↻ whenever you want the latest results.
+5. Tap any round to see its heat lists or results, or browse every round under *All rounds*.
 
 ## Running locally
 CompTracker is plain HTML, CSS and JavaScript with no build step. Serve the folder with any static web server, for example:

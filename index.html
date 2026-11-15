@@ -13,6 +13,10 @@
   </head>
   <body>
     <main class="app-shell">
+      <nav id="view-tabs" class="tabs view-tabs" role="tablist" aria-label="View" hidden>
+        <button class="tab" type="button" role="tab" aria-selected="true" data-view-tab="dashboard">Watch list</button>
+        <button class="tab" type="button" role="tab" aria-selected="false" data-view-tab="rounds">All rounds</button>
+      </nav>
       <section id="setup-view" class="view" aria-labelledby="setup-title" hidden>
         <img class="intro-mark" src="icon.svg" alt="" aria-hidden="true" />
         <p class="eyebrow">CompTracker</p>
@@ -54,7 +58,7 @@
       </section>
 
       <section id="results-view" class="view" aria-labelledby="results-title" hidden>
-        <button id="back-button" class="back-button" type="button"><span aria-hidden="true">←</span> Watch list</button>
+        <button id="back-button" class="back-button" type="button"><span aria-hidden="true">←</span> <span id="back-label">Watch list</span></button>
         <header class="topbar">
           <div>
             <p class="eyebrow"><span id="results-event-label"></span></p>
@@ -63,6 +67,23 @@
         </header>
         <p class="field-note">Judges' scores for every round your people danced. Callback rounds show each judge's Yes, No or alternate vote; finals show each judge's placement.</p>
         <section id="results-list" class="results"></section>
+      </section>
+
+      <section id="rounds-view" class="view" aria-labelledby="rounds-title" hidden>
+        <button id="rounds-back-button" class="back-button" type="button" hidden><span aria-hidden="true">←</span> <span id="rounds-back-label">All rounds</span></button>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow"><span id="rounds-event-label"></span></p>
+            <h1 id="rounds-title">All rounds</h1>
+            <p id="rounds-subtitle" class="round-subtitle" hidden></p>
+          </div>
+          <button id="rounds-refresh-button" class="icon-button" type="button" aria-label="Refresh" title="Refresh">
+            <span aria-hidden="true">↻</span>
+          </button>
+        </header>
+        <div id="rounds-status" class="status-banner" role="status" hidden></div>
+        <p id="rounds-note" class="field-note"></p>
+        <section id="rounds-content" class="results" aria-live="polite"></section>
       </section>
     </main>
 
