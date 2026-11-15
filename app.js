@@ -514,9 +514,11 @@ function renderAll() {
 function formatTime(value) {
   const date = new Date(value);
   const isToday = date.toDateString() === new Date().toDateString();
+  // Browsers pick 12/24-hour from the language (en-US → AM/PM) and can't see the phone's
+  // 24-hour setting, so force a 24-hour clock.
   const options = isToday
-    ? { hour: 'numeric', minute: '2-digit', second: '2-digit' }
-    : { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
+    ? { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }
+    : { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
   return new Intl.DateTimeFormat(undefined, options).format(date);
 }
 
