@@ -64,7 +64,6 @@ const elements = {
   sortSelect: document.querySelector('#sort-select'),
   collapseAll: document.querySelector('#collapse-all-button'),
   favouritesView: document.querySelector('#favourites-view'),
-  favouritesTitle: document.querySelector('#favourites-title'),
   favouritesRefresh: document.querySelector('#favourites-refresh-button'),
   favouritesStatus: document.querySelector('#favourites-status'),
   favouritesNote: document.querySelector('#favourites-note'),
@@ -136,34 +135,6 @@ function savePrefs() {
 
 function sortOrder() {
   return SORT_ORDERS.includes(prefs.sort) ? prefs.sort : 'added';
-}
-
-// Features that stay hidden unless turned on for this device: open the app with
-// ?enable=<feature> (or ?disable=<feature>), or tap the Favourites title five times in a row
-// (a home-screen app on iOS keeps its own storage, so a link opened in Safari would not reach it).
-const FEATURES = ['bulk-add'];
-
-function hasFeature(feature) {
-  return Array.isArray(prefs.features) && prefs.features.includes(feature);
-}
-
-function setFeature(feature, enabled) {
-  const others = (Array.isArray(prefs.features) ? prefs.features : []).filter((item) => item !== feature);
-  prefs.features = enabled ? [...others, feature] : others;
-  savePrefs();
-}
-
-function applyFeatureParams() {
-  const params = new URLSearchParams(location.search);
-  let changed = false;
-  [['enable', true], ['disable', false]].forEach(([name, enabled]) => {
-    params.getAll(name).flatMap((value) => value.split(',')).filter((feature) => FEATURES.includes(feature)).forEach((feature) => setFeature(feature, enabled));
-    if (params.has(name)) {
-      params.delete(name);
-      changed = true;
-    }
-  });
-  if (changed) history.replaceState(history.state, '', `${location.pathname}${params.size ? `?${params}` : ''}${location.hash}`);
 }
 
 // The Add person button shows its label at first, then shrinks to a round + so it covers less of the list.
@@ -1906,19 +1877,6 @@ elements.swingPointsSignOut.addEventListener('click', () => {
   elements.confirmDialog.showModal();
 });
 
-// Five quick taps on the title turn bulk add on or off for this device.
-let titleTaps = { count: 0, last: 0 };
-elements.favouritesTitle.addEventListener('click', () => {
-  const now = Date.now();
-  titleTaps = { count: now - titleTaps.last < 700 ? titleTaps.count + 1 : 1, last: now };
-  if (titleTaps.count < 5) return;
-  titleTaps.count = 0;
-  const enabled = !hasFeature('bulk-add');
-  setFeature('bulk-add', enabled);
-  renderFavourites();
-  setStatus(`Bulk add turned ${enabled ? 'on' : 'off'} for this device.`, 'info', elements.favouritesStatus);
-});
-
 // ---- Bulk add: favourites competing at the current event, added to the watch list at once ----
 
 function renderBulkBusy() {
@@ -1955,7 +1913,7 @@ function unwatchedFavourites() {
 
 // Banner in Add person → By name, once the competitor list is loaded.
 function renderFavouritesBanner() {
-  const count = hasFeature('bulk-add') ? unwatchedFavourites().length : 0;
+  const count = unwatchedFavourites().length;
   elements.favouritesBanner.hidden = count === 0;
   if (count) elements.favouritesBannerCopy.textContent = count === 1
     ? '1 favourite here isn\'t on your watch list yet.'
@@ -2191,7 +2149,6 @@ function setupServiceWorker() {
 }
 
 setupServiceWorker();
-applyFeatureParams();
 route();
 setupPullToRefresh();
 // The setup page already loads the live events on its own.

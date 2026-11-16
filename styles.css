@@ -277,7 +277,6 @@ html, body { overscroll-behavior-y: contain; }
 .standing .round-result { margin-top: 0; white-space: nowrap; }
 .standing.is-watched .mark { background: rgba(255,255,255,.7); }
 /* Favourites from SwingPoints */
-#favourites-title { -webkit-user-select: none; user-select: none; touch-action: manipulation; }
 .connect-form { margin-bottom: 18px; }
 .connect-form .dialog-copy { margin: 0; color: var(--ink); font-size: .95rem; }
 .connect-form .field-note { margin: 2px 0 0; }
