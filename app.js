@@ -1108,11 +1108,11 @@ function removePerson(query) {
 elements.results.addEventListener('click', (event) => {
   const removeButton = event.target.closest('[data-remove-query]');
   if (!removeButton) {
-    // The whole header opens and closes the card, and a folded card opens from a click anywhere
-    // on it; the name button is the keyboard control.
+    // A click anywhere on a card opens or closes it, except on the round rows (they open the
+    // round) and other links; the name button is the keyboard control.
     const card = event.target.closest('[data-person]');
-    if (!card || event.target.closest('[data-swipe-delete]')) return;
-    if (event.target.closest('.participant-header') || card.classList.contains('is-collapsed')) toggleParticipant(card.dataset.person);
+    if (!card || event.target.closest('[data-swipe-delete], [data-open-round], a')) return;
+    toggleParticipant(card.dataset.person);
     return;
   }
   const query = removeButton.dataset.removeQuery;

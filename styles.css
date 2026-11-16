@@ -123,7 +123,7 @@ input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 
 
 /* A person: a header row above their list of competitions. */
 .participant-header { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 2px 6px 4px; }
-.participant[data-person] .participant-header, .participant.is-collapsed[data-person] .swipe-track { cursor: pointer; }
+.participant[data-person] .swipe-track { cursor: pointer; }
 .participant-name { flex: 1; min-width: 0; font-size: 1.12rem; letter-spacing: -.02em; line-height: 1.2; }
 .participant-toggle { padding: 0; color: inherit; background: none; border: 0; border-radius: 4px; font: inherit; text-align: left; overflow-wrap: anywhere; }
 .participant-toggle:focus-visible { outline: 2px solid var(--mint-strong); outline-offset: 3px; }
