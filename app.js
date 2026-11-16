@@ -23,7 +23,7 @@ const elements = {
   refresh: document.querySelector('#refresh-button'),
   addButton: document.querySelector('#add-person-button'),
   resetButtons: document.querySelectorAll('.reset-event-button'),
-  roundsActions: document.querySelector('#rounds-actions'),
+  roundsReset: document.querySelector('#rounds-reset-button'),
   addDialog: document.querySelector('#add-dialog'),
   closeAddDialog: document.querySelector('#close-add-dialog'),
   addForm: document.querySelector('#add-form'),
@@ -1324,8 +1324,8 @@ function openRoundsView(params) {
 function renderRoundsView() {
   const roundId = roundsParams.get('round');
   setStatus(roundsError, 'error', elements.roundsStatus);
-  // Reset sits at the bottom of the round list only, not inside a single round.
-  elements.roundsActions.hidden = Boolean(roundId);
+  // Reset sits in the nav bar of the round list only, not inside a single round.
+  elements.roundsReset.hidden = Boolean(roundId);
   if (roundId) renderRoundDetail(roundId);
   else renderRoundIndex();
 }

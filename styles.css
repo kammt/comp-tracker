@@ -65,6 +65,11 @@ input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 
 .nav-icon { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; color: var(--ink); background: transparent; border: 0; border-radius: 50%; }
 .nav-icon svg, .nav-back svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .nav-icon:active { background: var(--row-active); }
+/* Reset event: a red-tinted leave icon, kept apart from the + on the other end. */
+.nav-icon-danger { width: 36px; height: 36px; margin-right: 2px; color: var(--danger-ink); background: rgba(218,91,77,.12); }
+.nav-icon-danger svg { width: 20px; height: 20px; }
+.nav-icon-danger:active { background: rgba(218,91,77,.22); }
+.nav-icon-danger:focus-visible { outline-color: var(--coral); }
 .nav-icon-accent { width: 36px; height: 36px; margin-left: 4px; color: var(--on-accent); background: var(--mint); }
 .nav-icon-accent svg { stroke-width: 2.4; }
 .nav-icon-accent:active { background: var(--mint); transform: scale(.94); }
@@ -244,8 +249,6 @@ button.round-row:active { background: var(--row-active); }
 .standing.is-watched .mark { background: rgba(255,255,255,.7); }
 
 /* ---- Bottom actions ---- */
-.dashboard-actions { margin-top: 32px; }
-.dashboard-actions .button-danger { width: 100%; background: var(--group); border: 0; border-radius: 12px; box-shadow: var(--shadow); font-weight: 600; }
 
 /* ---- Tab bar: a segmented control on wide screens, the bottom bar on phones ---- */
 .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 14px; padding: 4px; background: var(--surface); border-radius: 12px; }
@@ -355,7 +358,6 @@ html, body { overscroll-behavior-y: contain; }
 	.pull-indicator { box-shadow: 0 6px 18px rgba(0,0,0,.6); }
 	.button-secondary { background: transparent; }
 	.button-danger { color: var(--danger-ink); background: var(--danger-bg); border-color: var(--danger-line); }
-	.dashboard-actions .button-danger { background: var(--group); }
 	.status-banner[data-kind="error"], .participant-error { color: var(--danger-ink); background: var(--danger-bg); }
 	.roster-status .dialog-copy.is-error { color: var(--danger-ink); }
 	.empty-state { border-color: var(--dash); }
