@@ -12,7 +12,7 @@ Instead of searching for each person on the event wall one by one, you build a w
 - **Tap a round:** tapping a round on someone's card opens that round's heat lists on their heat, or, once results are out, jumps to their scores on the results page.
 - **Results:** once an event publishes results, each round shows the callback outcome or final placement, and *Show results* lists every judge's score (with full judge names) for every round your people danced.
 - **Change highlighting:** after a refresh, people whose results changed are briefly marked as *CHANGED*.
-- **Refresh on demand:** results only update when you press the refresh button, so the app never polls scoring.dance in the background.
+- **Refresh on demand:** results only update when you pull down, tap the refresh button or reload the page, so the app never polls scoring.dance in the background.
 - **Works like an app:** add it to your home screen. The last fetched results stay visible even when the connection drops.
 - **Light on traffic:** CompTracker reads scoring.dance's JSON API (`scoring.dance/api/`) instead of loading whole web pages.
 - **Private by design:** your event and watch list are stored only in your browser's local storage. There is no account and no server.
@@ -21,7 +21,7 @@ Instead of searching for each person on the event wall one by one, you build a w
 1. Pick your event under *Happening now*. CompTracker lists the scoring.dance events that are running right now.
 2. For any other event, open it on scoring.dance and copy the number from the URL instead. For example, in `scoring.dance/enUS/events/393/wall` the event ID is `393`. Enter it in CompTracker and confirm the event name.
 3. Add people by their bib number, or switch to *By name*, load the competitor list and search for them.
-4. Tap ↻ whenever you want the latest results.
+4. Pull down or tap ↻ whenever you want the latest results.
 5. Tap any round to see its heat lists or results, or browse every round under *All rounds*.
 
 ## Running locally

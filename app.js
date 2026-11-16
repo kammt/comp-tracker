@@ -59,6 +59,7 @@ const elements = {
   roundsStatus: document.querySelector('#rounds-status'),
   roundsNote: document.querySelector('#rounds-note'),
   roundsContent: document.querySelector('#rounds-content'),
+  pullIndicator: document.querySelector('#pull-indicator'),
 };
 
 let state = readState();
@@ -1156,7 +1157,7 @@ function renderRoundDetail(roundId) {
   const error = roundErrors.get(roundId);
   const usable = cached && (!kind || cached.kind === kind) ? cached : null;
   const noun = kind === 'results' ? 'Results' : 'Heat lists';
-  elements.roundsNote.textContent = usable ? `${noun} loaded ${formatTime(usable.fetchedAt)}. They do not refresh automatically; use ↻ to check for changes.` : '';
+  elements.roundsNote.textContent = usable ? `${noun} loaded ${formatTime(usable.fetchedAt)}. They do not refresh automatically; pull down or use ↻ to check for changes.` : '';
   if (error) setStatus(`${error}${usable ? ' Showing the copy loaded earlier.' : ''}`, usable ? 'error' : 'info', elements.roundsStatus);
   if (!usable) {
     elements.roundsContent.innerHTML = loading
@@ -1325,11 +1326,15 @@ elements.viewTabs.addEventListener('click', (event) => {
   route();
   window.scrollTo(0, 0);
 });
-elements.roundsRefresh.addEventListener('click', async () => {
+async function refreshRounds() {
   await loadRounds();
   const roundId = roundsParams.get('round');
-  if (roundId && currentPage() === 'rounds') loadRoundDetail(roundId, true);
-});
+  if (roundId && currentPage() === 'rounds') {
+    loadRoundDetail(roundId, true);
+    await roundLoads.get(roundId);
+  }
+}
+elements.roundsRefresh.addEventListener('click', refreshRounds);
 
 elements.showResults.addEventListener('click', () => navigate('#results', 'dashboard'));
 function goBack(fallbackHash) {
@@ -1345,6 +1350,125 @@ elements.backButton.addEventListener('click', () => goBack());
 elements.roundsBack.addEventListener('click', () => goBack('#rounds'));
 window.addEventListener('popstate', route);
 
+// ---- Pull to refresh ----
+// A browser's own pull-to-refresh reloads the page, which only shows the cached results.
+// styles.css turns it off (overscroll-behavior) and this gesture runs the app's refresh instead.
+// Where the browser's gesture can't be turned off, the reload itself fetches fresh results (see below).
+const PULL_THRESHOLD = 72;
+const PULL_MAX = 110;
+const PULL_REST = 60;
+const APP_RELOAD_KEY = 'comptracker-app-reload';
+
+// What "refresh" means on the page that is showing; an update already running is reused.
+function refreshCurrentView() {
+  if (!elements.setup.hidden) return loadLiveEvents();
+  if (!state) return Promise.resolve();
+  if (!elements.roundsView.hidden) return refreshRounds();
+  return refreshInFlight || refreshResults();
+}
+
+function setupPullToRefresh() {
+  const indicator = elements.pullIndicator;
+  let startX = 0;
+  let startY = 0;
+  let distance = 0;
+  let tracking = false;
+  let pulling = false;
+  let busy = false;
+
+  const show = (pull, dragging) => {
+    indicator.classList.toggle('is-dragging', dragging);
+    indicator.classList.toggle('is-armed', dragging && pull >= PULL_THRESHOLD);
+    indicator.style.setProperty('--pull', `${pull}px`);
+    indicator.style.setProperty('--pull-turn', `${(pull / PULL_THRESHOLD) * 270}deg`);
+    indicator.style.opacity = String(Math.min(1, pull / (PULL_THRESHOLD * 0.6)));
+  };
+  const stop = () => {
+    tracking = false;
+    if (!pulling) return false;
+    pulling = false;
+    return true;
+  };
+
+  document.addEventListener('touchstart', (event) => {
+    tracking = !busy && event.touches.length === 1 && window.scrollY <= 0 && !document.querySelector('dialog[open]');
+    if (!tracking) return;
+    startX = event.touches[0].clientX;
+    startY = event.touches[0].clientY;
+    distance = 0;
+  }, { passive: true });
+
+  // Not passive: the pull has to cancel the browser's own scroll (and on iOS, its bounce and pull-to-refresh).
+  document.addEventListener('touchmove', (event) => {
+    if (!tracking) return;
+    const touch = event.touches[0];
+    const dx = touch.clientX - startX;
+    const dy = touch.clientY - startY;
+    if (!pulling) {
+      if (dx === 0 && dy === 0) return;
+      // Sideways, upward, or already scrolled: ordinary scrolling. If the browser has already
+      // committed to scrolling (not cancelable), leave the gesture to it as well.
+      if (event.touches.length !== 1 || dy <= 0 || Math.abs(dx) > dy || window.scrollY > 0 || !event.cancelable) {
+        tracking = false;
+        return;
+      }
+      pulling = true;
+    }
+    if (event.cancelable) event.preventDefault();
+    distance = Math.min(Math.max(dy, 0) * 0.5, PULL_MAX);
+    show(distance, true);
+  }, { passive: false });
+
+  document.addEventListener('touchend', async () => {
+    if (!stop()) return;
+    if (distance < PULL_THRESHOLD) {
+      show(0, false);
+      return;
+    }
+    busy = true;
+    indicator.classList.add('is-refreshing');
+    show(PULL_REST, false);
+    const started = Date.now();
+    try {
+      await refreshCurrentView();
+    } catch (error) {
+      // Each view reports its own errors in its status banner.
+    }
+    // A refresh with nothing to fetch finishes at once; keep the spinner long enough to be seen.
+    await new Promise((resolve) => setTimeout(resolve, Math.max(0, 500 - (Date.now() - started))));
+    indicator.classList.remove('is-refreshing');
+    show(0, false);
+    busy = false;
+  });
+
+  document.addEventListener('touchcancel', () => {
+    if (stop()) show(0, false);
+  });
+}
+
+// Lets the next page load tell an update reload by the app apart from one by the user.
+function markAppReload() {
+  try {
+    sessionStorage.setItem(APP_RELOAD_KEY, '1');
+  } catch (error) {
+    // Without storage the update reload just fetches results once more.
+  }
+}
+
+// True when the user reloaded the page: the browser's reload button, or a pull-to-refresh
+// the browser would not let the app take over.
+function isUserReload() {
+  let byApp = false;
+  try {
+    byApp = sessionStorage.getItem(APP_RELOAD_KEY) === '1';
+    sessionStorage.removeItem(APP_RELOAD_KEY);
+  } catch (error) {
+    byApp = false;
+  }
+  const [navigation] = performance.getEntriesByType?.('navigation') || [];
+  return !byApp && navigation?.type === 'reload';
+}
+
 function setupServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   // A controller change while one was already active means a new version was deployed.
@@ -1358,6 +1482,7 @@ function setupServiceWorker() {
     // reload as soon as the app is hidden instead, where nobody sees it.
     if (document.visibilityState === 'visible' && isBusy()) return;
     reloadPending = false;
+    markAppReload();
     window.location.reload();
   };
   navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -1382,3 +1507,6 @@ function setupServiceWorker() {
 
 setupServiceWorker();
 route();
+setupPullToRefresh();
+// The setup page already loads the live events on its own.
+if (state && isUserReload()) refreshCurrentView();

@@ -121,6 +121,14 @@ input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 
 .fab:focus-visible { outline: 3px solid var(--mint-strong); outline-offset: 3px; }
 /* Room below the last card so the button never covers it. */
 body.has-fab .app-shell { padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
+/* Pull to refresh: the browser's own gesture would reload the page, so app.js takes it over.
+   A circle follows the finger down from the top edge and spins while the refresh runs. */
+html, body { overscroll-behavior-y: contain; }
+.pull-indicator { position: fixed; z-index: 12; top: env(safe-area-inset-top); left: 50%; display: grid; place-items: center; width: 40px; height: 40px; margin-left: -20px; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 50%; box-shadow: 0 6px 18px rgba(23,35,31,.16); opacity: 0; pointer-events: none; transform: translateY(calc(var(--pull, 0px) - 100%)); transition: transform .25s ease, opacity .25s ease, color .15s; }
+.pull-indicator.is-dragging { transition: color .15s; }
+.pull-indicator svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transform: rotate(var(--pull-turn, 0deg)); }
+.pull-indicator.is-armed, .pull-indicator.is-refreshing { color: var(--mint-strong); }
+.pull-indicator.is-refreshing svg { animation: spin .8s linear infinite; }
 @keyframes fab-enter { from { opacity: 0; transform: scale(.85) translateY(8px); } to { opacity: 1; transform: none; } }
 .dialog { width: min(calc(100% - 32px), 480px); border: 0; border-radius: 16px; padding: 22px; box-shadow: 0 24px 80px rgba(23,35,31,.22); }
 .dialog::backdrop { background: rgba(23,35,31,.38); backdrop-filter: blur(3px); }.dialog-heading { display: flex; justify-content: space-between; margin-bottom: 12px; }.close-button { width: 34px; height: 34px; font-size: 1.35rem; }.dialog-actions { display: grid; gap: 10px; }
@@ -236,6 +244,7 @@ body.has-fab .app-shell { padding-bottom: calc(104px + env(safe-area-inset-botto
 	input:focus, textarea:focus { box-shadow: 0 0 0 3px rgba(111,224,169,.25); }
 	.button:hover { box-shadow: 0 8px 18px rgba(0,0,0,.5); }
 	.fab { color: var(--on-accent); box-shadow: 0 10px 28px rgba(0,0,0,.6); }
+	.pull-indicator { box-shadow: 0 6px 18px rgba(0,0,0,.6); }
 	.button-primary, .live-event-arrow, .button-results, .round-result.final, .placement-hero, .suggestion-name mark { color: var(--on-accent); }
 	.button-secondary { background: transparent; }
 	.button-danger { color: var(--danger-ink); background: var(--danger-bg); border-color: var(--danger-line); }
