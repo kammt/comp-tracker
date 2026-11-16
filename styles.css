@@ -375,3 +375,18 @@ html, body { overscroll-behavior-y: contain; }
 	.division-chip { background: var(--chip); }
 	.favourites-banner { background: rgba(111,224,169,.08); border-color: rgba(111,224,169,.3); }
 }
+
+/* ---- No zooming: double-tap zoom off here, pinch blocked by the viewport tag and in app.js ---- */
+html { touch-action: manipulation; }
+
+/* ---- Swipe a watch list card left to delete ---- */
+:root { --swipe-red: #d93a2e; }
+.participant[data-person] { position: relative; touch-action: pan-y; }
+.swipe-track { position: relative; z-index: 1; transition: transform .3s cubic-bezier(.2, .8, .2, 1); }
+.swipe-delete { position: absolute; top: 50%; right: 0; display: grid; place-items: center; width: max(52px, calc(var(--swipe-reveal, 0px) - 10px)); height: 52px; padding: 0; overflow: hidden; color: #fff; background: var(--swipe-red); border: 0; border-radius: 999px; visibility: hidden; transform: translateY(-50%) scale(var(--swipe-scale, 0)); transform-origin: right center; transition: width .3s cubic-bezier(.2, .8, .2, 1), transform .3s cubic-bezier(.2, .8, .2, 1); }
+.swipe-delete svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.participant.is-swiped .swipe-delete { visibility: visible; }
+.participant.is-dragging .swipe-track, .participant.is-dragging .swipe-delete { transition: none; }
+.participant.is-removing { overflow: hidden; transition: height .3s ease .1s, margin .3s ease .1s, opacity .25s ease .1s; }
+@media (prefers-reduced-motion: reduce) { .swipe-track, .swipe-delete { transition: none; } }
+@media (prefers-color-scheme: dark) { :root { --swipe-red: #ff453a; } }

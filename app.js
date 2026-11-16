@@ -626,8 +626,11 @@ function renderResults() {
     const changedTime = showChangeTime && participant.changedAt ? ` · ${escapeHtml(formatTime(participant.changedAt, true))}` : '';
     return `
     <article class="participant${participant.changed ? ' is-changed' : ''}${collapsed ? ' is-collapsed' : ''}" data-person="${escapeHtml(participant.query)}">
+      <button class="swipe-delete" type="button" data-swipe-delete="${escapeHtml(participant.query)}" tabindex="-1" aria-hidden="true">${TRASH_ICON}</button>
+      <div class="swipe-track">
       <header class="participant-header"><h2 class="participant-name"><button class="participant-toggle" type="button" aria-expanded="${!collapsed}" aria-controls="${bodyId}">${escapeHtml(participant.name)}</button></h2>${participant.changed ? '<strong class="change-label">Changed</strong>' : ''}<span class="bib">Bib ${escapeHtml(participant.query)}${changedTime}</span><button class="remove-button" type="button" data-remove-query="${escapeHtml(participant.query)}" aria-label="Remove ${escapeHtml(participant.name)}" title="Remove person"${collapsed ? ' tabindex="-1"' : ''}>${TRASH_ICON}</button><span class="participant-chevron" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></header>
       <div id="${bodyId}" class="participant-body panel">${renderParticipantBody(participant, collapsed)}</div>
+      </div>
     </article>`;
   }).join('');
 }
@@ -1087,6 +1090,16 @@ elements.eventIdHelp.addEventListener('click', () => elements.eventIdDialog.show
 elements.refresh.addEventListener('click', refreshResults);
 elements.addButton.addEventListener('click', openAddDialog);
 elements.closeAddDialog.addEventListener('click', () => elements.addDialog.close());
+function removePerson(query) {
+  if (!state) return;
+  state.watchList = state.watchList.filter((item) => item !== query);
+  state.results = (state.results || []).filter((result) => result.query !== query);
+  state.collapsed = (state.collapsed || []).filter((item) => item !== query);
+  saveState();
+  renderAll();
+  setStatus(`${query} removed from the watch list.`);
+}
+
 elements.results.addEventListener('click', (event) => {
   const removeButton = event.target.closest('[data-remove-query]');
   if (!removeButton) {
@@ -1147,13 +1160,7 @@ elements.confirmForm.addEventListener('submit', (event) => {
     return;
   }
   if (pendingRemoval) {
-    const query = pendingRemoval;
-    state.watchList = state.watchList.filter((item) => item !== query);
-    state.results = (state.results || []).filter((result) => result.query !== query);
-    state.collapsed = (state.collapsed || []).filter((item) => item !== query);
-    saveState();
-    renderAll();
-    setStatus(`${query} removed from the watch list.`);
+    removePerson(pendingRemoval);
     pendingRemoval = null;
     elements.confirmDialog.close();
     return;
@@ -2048,6 +2055,172 @@ function refreshCurrentView() {
   return refreshInFlight || refreshResults();
 }
 
+// The touch gesture that owns the current drag, so a pull to refresh and a swipe on a card never run together.
+let activeGesture = null;
+
+// Swipe a watch list card left to reveal Delete; tap it, or keep swiping past half the card, to remove the person.
+function setupSwipeToDelete() {
+  // The Delete hint is a circle that pops in, then stretches into a capsule as the swipe goes on.
+  const CIRCLE = 52;
+  const GAP = 10;
+  const ACTION_WIDTH = CIRCLE + GAP;
+  const SLOP = 10;
+  let card = null;
+  let startX = 0;
+  let startY = 0;
+  let startOffset = 0;
+  let offset = 0;
+  let swiping = false;
+  let openCard = null;
+  let swallowClick = false;
+  let swallowTimer = null;
+
+  const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const trackOf = (target) => target.querySelector(':scope > .swipe-track');
+  const setOffset = (target, value, animate) => {
+    const targetTrack = trackOf(target);
+    target.classList.toggle('is-dragging', !animate);
+    targetTrack.style.transform = value ? `translateX(${value}px)` : '';
+    const reveal = Math.max(0, -value);
+    target.style.setProperty('--swipe-reveal', `${reveal}px`);
+    target.style.setProperty('--swipe-scale', String(Math.min(1, Math.max(0, (reveal - GAP) / CIRCLE))));
+    target.classList.toggle('is-swiped', value < 0);
+  };
+  const close = (target) => {
+    if (!target) return;
+    setOffset(target, 0, true);
+    if (target === openCard) openCard = null;
+  };
+  const open = (target) => {
+    if (openCard && openCard !== target) close(openCard);
+    setOffset(target, -ACTION_WIDTH, true);
+    openCard = target;
+  };
+  // Slides the card off, folds its space away, then removes the person.
+  const remove = (target) => {
+    const query = target.dataset.person;
+    if (openCard === target) openCard = null;
+    if (reduceMotion()) {
+      removePerson(query);
+      return;
+    }
+    target.classList.add('is-removing');
+    setOffset(target, -target.offsetWidth, true);
+    target.style.height = `${target.offsetHeight}px`;
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      removePerson(query);
+    };
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      target.style.height = '0px';
+      target.style.marginBottom = '-20px';
+      target.style.opacity = '0';
+      setTimeout(finish, 420);
+    }));
+  };
+
+  // A tap anywhere while a card is open just closes it, as in iOS lists.
+  document.addEventListener('touchstart', (event) => {
+    clearTimeout(swallowTimer);
+    swallowClick = false;
+    if (!openCard || !openCard.isConnected) {
+      openCard = null;
+      return;
+    }
+    if (event.target.closest('[data-swipe-delete]')) return;
+    if (!openCard.contains(event.target)) close(openCard);
+    swallowClick = true;
+  }, { capture: true, passive: true });
+  document.addEventListener('click', (event) => {
+    if (!swallowClick) return;
+    swallowClick = false;
+    if (openCard) close(openCard);
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
+
+  elements.results.addEventListener('touchstart', (event) => {
+    card = null;
+    if (event.touches.length !== 1 || document.querySelector('dialog[open]')) return;
+    const target = event.target.closest('.participant[data-person]');
+    if (!target || target.classList.contains('is-removing') || event.target.closest('[data-swipe-delete]')) return;
+    card = target;
+    startX = event.touches[0].clientX;
+    startY = event.touches[0].clientY;
+    startOffset = card === openCard ? -ACTION_WIDTH : 0;
+    offset = startOffset;
+    swiping = false;
+  }, { passive: true });
+
+  // Not passive: once the drag is sideways it has to stop the page from scrolling.
+  elements.results.addEventListener('touchmove', (event) => {
+    if (!card) return;
+    const touch = event.touches[0];
+    const dx = touch.clientX - startX;
+    const dy = touch.clientY - startY;
+    if (!swiping) {
+      if (Math.abs(dx) < SLOP && Math.abs(dy) < SLOP) return;
+      // Mostly vertical, already scrolling, or a pull to refresh: leave it to them.
+      if (activeGesture || event.touches.length !== 1 || Math.abs(dx) <= Math.abs(dy) * 1.2 || !event.cancelable) {
+        card = null;
+        return;
+      }
+      // Starting sideways from a closed card only counts when it goes left.
+      if (startOffset === 0 && dx > 0) {
+        card = null;
+        return;
+      }
+      swiping = true;
+      activeGesture = 'swipe';
+      if (openCard && openCard !== card) close(openCard);
+      startX = touch.clientX;
+    }
+    event.preventDefault();
+    const raw = startOffset + (touch.clientX - startX);
+    // Rubber-bands past the closed position instead of sliding right.
+    offset = raw > 0 ? raw * 0.2 : Math.max(raw, -card.offsetWidth);
+    setOffset(card, offset, false);
+  }, { passive: false });
+
+  const end = () => {
+    if (!card) return;
+    const target = card;
+    card = null;
+    if (!swiping) return;
+    swiping = false;
+    if (activeGesture === 'swipe') activeGesture = null;
+    // The drag ends as a swipe, not a tap, so the click that may follow must not toggle the card.
+    swallowClick = true;
+    if (-offset > target.offsetWidth * 0.5) remove(target);
+    else if (-offset > ACTION_WIDTH * 0.5) open(target);
+    else close(target);
+    // A click only follows a touch that did not move; clear the flag so it cannot eat the next real tap.
+    swallowTimer = setTimeout(() => { swallowClick = false; }, 400);
+  };
+  elements.results.addEventListener('touchend', end);
+  elements.results.addEventListener('touchcancel', end);
+
+  elements.results.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-swipe-delete]');
+    if (!button) return;
+    event.stopPropagation();
+    remove(button.closest('[data-person]'));
+  });
+}
+
+// iOS ignores `user-scalable=no`, so its pinch gestures are cancelled by hand; double-tap
+// zoom is off through `touch-action` in the stylesheet.
+function preventZoom() {
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach((type) => {
+    document.addEventListener(type, (event) => event.preventDefault(), { passive: false });
+  });
+  document.addEventListener('touchmove', (event) => {
+    if (event.touches.length > 1 && event.cancelable) event.preventDefault();
+  }, { passive: false });
+}
+
 function setupPullToRefresh() {
   const indicator = elements.pullIndicator;
   let startX = 0;
@@ -2068,6 +2241,7 @@ function setupPullToRefresh() {
     tracking = false;
     if (!pulling) return false;
     pulling = false;
+    if (activeGesture === 'pull') activeGesture = null;
     return true;
   };
 
@@ -2089,11 +2263,12 @@ function setupPullToRefresh() {
       if (dx === 0 && dy === 0) return;
       // Sideways, upward, or already scrolled: ordinary scrolling. If the browser has already
       // committed to scrolling (not cancelable), leave the gesture to it as well.
-      if (event.touches.length !== 1 || dy <= 0 || Math.abs(dx) > dy || window.scrollY > 0 || !event.cancelable) {
+      if (activeGesture || event.touches.length !== 1 || dy <= 0 || Math.abs(dx) > dy || window.scrollY > 0 || !event.cancelable) {
         tracking = false;
         return;
       }
       pulling = true;
+      activeGesture = 'pull';
     }
     if (event.cancelable) event.preventDefault();
     distance = Math.min(Math.max(dy, 0) * 0.5, PULL_MAX);
@@ -2189,5 +2364,7 @@ function setupServiceWorker() {
 setupServiceWorker();
 route();
 setupPullToRefresh();
+setupSwipeToDelete();
+preventZoom();
 // The setup page already loads the live events on its own.
 if (state && isUserReload()) refreshCurrentView();
