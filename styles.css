@@ -390,3 +390,8 @@ html { touch-action: manipulation; }
 .participant.is-removing { overflow: hidden; transition: height .3s ease .1s, margin .3s ease .1s, opacity .25s ease .1s; }
 @media (prefers-reduced-motion: reduce) { .swipe-track, .swipe-delete { transition: none; } }
 @media (prefers-color-scheme: dark) { :root { --swipe-red: #ff453a; } }
+/* Touch screens delete by swiping, so the trash icon only shows where there is a mouse. It stays
+   available to screen readers, whose swipe gestures navigate instead of revealing Delete. */
+@media (hover: none) and (pointer: coarse) {
+  .participant-header .remove-button { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+}
