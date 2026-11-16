@@ -163,6 +163,10 @@ function showView(view, tab = null) {
   // On phones the tab bar is pinned to the bottom, so the page needs room below its content.
   document.body.classList.toggle('has-tab-bar', Boolean(tab));
   elements.viewTabButtons.forEach((button) => button.setAttribute('aria-selected', String(button.dataset.viewTab === tab)));
+  // The glass lens behind the selected tab slides to it; CSS places it from these two numbers.
+  const visibleTabs = elements.viewTabButtons.filter((button) => !button.hidden);
+  elements.viewTabs.style.setProperty('--tab-count', visibleTabs.length);
+  elements.viewTabs.style.setProperty('--tab-index', Math.max(0, visibleTabs.findIndex((button) => button.dataset.viewTab === tab)));
 }
 
 // The watch list keeps progress and "Updated …" notes to one quiet line under the nav bar;
@@ -230,8 +234,9 @@ async function fetchParticipant(eventId, query, eventRounds) {
   return { query, name: info.name || query, competitions };
 }
 
-// A participant only lists the rounds they made it into, so the competition's other rounds
-// (taken from the event's round list) are the ones they are out of.
+// A participant only lists the rounds they made it into, so the competition's other rounds come
+// from the event's round list. They are out of such a round only once it lists its dancers (it has
+// heats, or results); before that it is pending, as callbacks for it may still be coming.
 function competitionRounds(competition, eventRounds) {
   const own = new Map((competition.rounds || []).filter((round) => !round.is_canceled).map((round) => [String(round.id), round]));
   const prefix = `${competition.name} `;
@@ -239,13 +244,13 @@ function competitionRounds(competition, eventRounds) {
     // The rest must be one word ("prelim", "semi", …), or "Triple Challenge" would also claim the
     // rounds of "Triple Challenge (WCS)".
     .filter((round) => round.name.startsWith(prefix) && !/\s/.test(round.name.slice(prefix.length).trim()))
-    .map((round) => ({ id: String(round.id), name: round.name.slice(prefix.length).trim() }));
+    .map((round) => ({ id: String(round.id), name: round.name.slice(prefix.length).trim(), listed: Number(round.heats) > 0 || Boolean(round.results_published) }));
   const listedIds = new Set(listed.map((round) => round.id));
-  const unlisted = [...own.values()].filter((round) => !listedIds.has(String(round.id))).map((round) => ({ id: String(round.id), name: round.type }));
-  return [...listed, ...unlisted].map(({ id, name }) => {
+  const unlisted = [...own.values()].filter((round) => !listedIds.has(String(round.id))).map((round) => ({ id: String(round.id), name: round.type, listed: true }));
+  return [...listed, ...unlisted].map(({ id, name, listed: hasDancers }) => {
     const round = own.get(id);
     const isIn = Boolean(round?.is_in);
-    return { id, name, status: isIn ? 'in' : 'out', heat: isIn ? (round.heats || []).map((heat) => `heat${heat}`).join(' ') : '' };
+    return { id, name, status: isIn ? 'in' : hasDancers ? 'out' : 'pending', heat: isIn ? (round.heats || []).map((heat) => `heat${heat}`).join(' ') : '' };
   });
 }
 
@@ -699,10 +704,10 @@ function renderCompetition(competition, participant, collapsed) {
   // Collapsed cards show one dot per round instead of the round rows: filled for rounds they
   // made, hollow for the rest, and a medal colour for a top-5 final placement.
   const final = latest && hasResult(latest.result) && latest.result.kind === 'final' ? latest : null;
-  const pips = `<span class="pips" aria-hidden="true">${competition.rounds.map((round) => `<i class="pip ${round.status === 'in' ? 'in' : 'out'}${round === final ? ` final ${placeClass(round.result.placement)}` : ''}"></i>`).join('')}</span>`;
+  const pips = `<span class="pips" aria-hidden="true">${competition.rounds.map((round) => `<i class="pip ${round.status}${round === final ? ` final ${placeClass(round.result.placement)}` : ''}"></i>`).join('')}</span>`;
   const rounds = competition.rounds.map((round) => {
     const label = `${competition.title} ${round.name}: ${isRoundPublished(round) ? 'show results' : 'show heat lists'}`;
-    const detail = round.status === 'in' ? escapeHtml(heatText(round.heat) || 'In') : 'Out';
+    const detail = round.status === 'in' ? escapeHtml(heatText(round.heat) || 'In') : round.status === 'out' ? 'Out' : 'Not out yet';
     return `<li><button class="round-row round-link is-${round.status}" type="button" data-open-round="${escapeHtml(round.id || '')}" data-bib="${escapeHtml(participant.query)}" data-heat="${escapeHtml((String(round.heat || '').match(/\d+/) || [''])[0])}" aria-label="${escapeHtml(label)}"><span class="round-row-name">${escapeHtml(round.name)}</span><span class="round-row-detail">${detail}</span>${round.status === 'in' ? renderRoundResultChip(round.result) : ''}${CHEVRON_RIGHT}</button></li>`;
   }).join('');
   return `<section class="competition"><div class="comp-row"><div class="comp-main"><h3 class="competition-title">${escapeHtml(competition.title)}</h3>${meta ? `<p class="meta-line">${meta}</p>` : ''}</div>${pips}${progress}</div>${rounds ? `<div class="comp-rounds collapsible"${collapsed ? ' inert' : ''}><div><ul class="round-rows">${rounds}</ul></div></div>` : ''}</section>`;
