@@ -111,6 +111,15 @@ function sortOrder() {
   return SORT_ORDERS.includes(prefs.sort) ? prefs.sort : 'added';
 }
 
+// The Add person button shows its label at first, then shrinks to a round + so it covers less of the list.
+const FAB_COLLAPSE_DELAY = 5000;
+let fabCollapseTimer = null;
+
+function scheduleFabCollapse() {
+  if (fabCollapseTimer !== null) return;
+  fabCollapseTimer = setTimeout(() => elements.addButton.classList.add('is-collapsed'), FAB_COLLAPSE_DELAY);
+}
+
 // `tab` is the tab bar entry to highlight; the tab bar only shows on the two top-level pages.
 function showView(view, tab = null) {
   elements.setup.hidden = view !== 'setup';
@@ -119,6 +128,7 @@ function showView(view, tab = null) {
   elements.roundsView.hidden = view !== 'rounds';
   elements.viewTabs.hidden = !tab;
   elements.addButton.hidden = view !== 'dashboard';
+  if (view === 'dashboard') scheduleFabCollapse();
   document.body.classList.toggle('has-fab', view === 'dashboard');
   // On phones the tab bar is pinned to the bottom, so the page needs room below its content.
   document.body.classList.toggle('has-tab-bar', Boolean(tab));

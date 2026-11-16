@@ -145,8 +145,13 @@ input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 
 .judge.chief { background: transparent; border: 1px dashed var(--line); }
 .dashboard-actions { display: grid; gap: 10px; margin-top: 24px; }
 /* Extended floating action button; sits above the bottom tab bar on phones. */
-.fab { position: fixed; z-index: 11; right: max(16px, env(safe-area-inset-right)); bottom: calc(24px + env(safe-area-inset-bottom)); display: inline-flex; align-items: center; gap: 8px; height: 56px; padding: 0 22px 0 18px; color: var(--ink); background: var(--mint); border: 0; border-radius: 18px; box-shadow: 0 10px 28px rgba(23,35,31,.22), 0 2px 6px rgba(23,35,31,.12); font-weight: 700; -webkit-tap-highlight-color: transparent; transition: transform .15s, box-shadow .15s; animation: fab-enter .3s ease-out both; }
-.fab svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.fab { position: fixed; z-index: 11; right: max(16px, env(safe-area-inset-right)); bottom: calc(24px + env(safe-area-inset-bottom)); display: inline-flex; align-items: center; gap: 8px; height: 56px; padding: 0 22px 0 18px; color: var(--ink); background: var(--mint); border: 0; border-radius: 18px; box-shadow: 0 10px 28px rgba(23,35,31,.22), 0 2px 6px rgba(23,35,31,.12); font-weight: 700; -webkit-tap-highlight-color: transparent; transition: transform .15s, box-shadow .15s, padding .3s ease, gap .3s ease, border-radius .3s ease; animation: fab-enter .3s ease-out both; }
+.fab svg { flex: none; width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.fab span { max-width: 8em; overflow: hidden; white-space: nowrap; transition: max-width .3s ease, opacity .2s ease; }
+/* After a few seconds app.js collapses the label, leaving a 56px circle with just the +. */
+.fab.is-collapsed { gap: 0; padding: 0 17px; border-radius: 28px; }
+.fab.is-collapsed span { max-width: 0; opacity: 0; }
+@media (prefers-reduced-motion: reduce) { .fab, .fab span { transition: none; } }
 .fab:hover { transform: translateY(-2px); box-shadow: 0 14px 32px rgba(23,35,31,.26), 0 3px 8px rgba(23,35,31,.14); }
 .fab:active { transform: scale(.96); }
 .fab:focus-visible { outline: 3px solid var(--mint-strong); outline-offset: 3px; }
