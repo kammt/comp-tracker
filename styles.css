@@ -196,6 +196,14 @@ html, body { overscroll-behavior-y: contain; }
   body.has-tab-bar .app-shell { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
   body.has-tab-bar .fab { bottom: calc(84px + env(safe-area-inset-bottom)); }
   body.has-tab-bar.has-fab .app-shell { padding-bottom: calc(164px + env(safe-area-inset-bottom)); }
+  /* Compact header so the watch list starts in the top half of the screen. */
+  .topbar { align-items: center; gap: 12px; margin: 0 0 12px; }
+  .topbar .eyebrow { margin-bottom: 4px; letter-spacing: .1em; }
+  .topbar h1, .topbar h1.is-round { font-size: 1.75rem; letter-spacing: -.03em; }
+  .topbar .icon-button { flex: none; width: 40px; height: 40px; font-size: 1.35rem; }
+  .status-banner { margin-bottom: 8px; padding: 8px 12px; font-size: .88rem; line-height: 1.4; }
+  .refresh-note, #rounds-note { margin-bottom: 12px; font-size: .78rem; line-height: 1.4; }
+  .button-results { margin-bottom: 14px; padding: 10px 16px; }
 }
 /* Rounds open their heat lists or results */
 .round-link { position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; width: 100%; color: inherit; border: 1px solid transparent; text-align: left; transition: border-color .15s, transform .15s; }
