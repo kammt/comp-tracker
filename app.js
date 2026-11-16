@@ -236,7 +236,9 @@ function competitionRounds(competition, eventRounds) {
   const own = new Map((competition.rounds || []).filter((round) => !round.is_canceled).map((round) => [String(round.id), round]));
   const prefix = `${competition.name} `;
   const listed = eventRounds
-    .filter((round) => round.name.startsWith(prefix))
+    // The rest must be one word ("prelim", "semi", …), or "Triple Challenge" would also claim the
+    // rounds of "Triple Challenge (WCS)".
+    .filter((round) => round.name.startsWith(prefix) && !/\s/.test(round.name.slice(prefix.length).trim()))
     .map((round) => ({ id: String(round.id), name: round.name.slice(prefix.length).trim() }));
   const listedIds = new Set(listed.map((round) => round.id));
   const unlisted = [...own.values()].filter((round) => !listedIds.has(String(round.id))).map((round) => ({ id: String(round.id), name: round.type }));
