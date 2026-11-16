@@ -7,12 +7,12 @@ Instead of searching for each person on the event wall one by one, you build a w
 ## Features
 - **One event, many people:** pick an event that is happening now on scoring.dance (or enter its ID), then add the bib numbers of everyone you want to follow.
 - **Everything at a glance:** for each person, see every competition they are entered in, their role (and partner in Strictly competitions), which rounds they made, and their heat numbers.
-- **Collapsible cards:** tap a person's name to fold their card down to one line per competition: the latest round they danced and its result or heat. *Collapse all* folds every card at once.
+- **Collapsible lists:** each person is a short list with one row per competition (the latest round they danced and its result or heat). Tap their name to show or hide the rounds below each competition. *Collapse all* folds every person at once.
 - **Sort the watch list:** in the order you added people, most recently added first, alphabetically, or by most recent changes (with the time each person's info last changed).
 - **Find people by name:** load the event's competitor list once, then type part of a first or last name and pick from the suggestions. The list shows when it was loaded and can be reloaded to pick up late changes.
 - **All rounds:** the *All rounds* tab lists every round of the event. Open one to see its heat lists (who dances in which heat, with your people highlighted), or the full results with every judge's marks once they are published.
 - **Tap a round:** tapping a round on someone's card opens that round's heat lists on their heat, or, once results are out, jumps to their scores on the results page.
-- **Results:** once an event publishes results, each round shows the callback outcome or final placement, and *Show results* lists every judge's score (with full judge names) for every round your people danced.
+- **Results:** once an event publishes results, each round shows the callback outcome or final placement, and the trophy button on the watch list lists every judge's score for every round your people danced (tap *Judges* for their full names).
 - **Favourites from SwingPoints:** before you pick an event, the home screen has a *Favourites* tab. It signs in to your [SwingPoints](https://apps.apple.com/app/swingpoints/id1214670404) account and lists the dancers you follow there, with their WSDC ID, roles and highest division. Tap ↻ or pull down to sync the list again. SwingPoints has no public API, so this uses the API of its own app and may stop working if that changes.
 - **Bulk add from favourites:** during an event, *Add person → By name* shows a banner once the competitor list is loaded: how many of your favourites compete there but aren't on your watch list yet. *Review* lists them, matched by name, and adds the ones you tick in one go.
 - **Change highlighting:** after a refresh, people whose results changed are briefly marked as *CHANGED*.

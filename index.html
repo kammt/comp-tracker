@@ -16,7 +16,7 @@
       <nav id="view-tabs" class="tabs view-tabs" role="tablist" aria-label="View" hidden>
         <button class="tab" type="button" role="tab" aria-selected="false" data-view-tab="setup"><svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9v11h13V9"/><path d="M10 20v-5.5h4V20"/></svg><span>Home</span></button>
         <button class="tab" type="button" role="tab" aria-selected="true" data-view-tab="dashboard"><svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><span>Watch list</span></button>
-        <button class="tab" type="button" role="tab" aria-selected="false" data-view-tab="rounds"><svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg><span>All rounds</span></button>
+        <button class="tab" type="button" role="tab" aria-selected="false" data-view-tab="rounds"><svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg><span id="rounds-tab-label">All rounds</span></button>
         <button class="tab" type="button" role="tab" aria-selected="false" data-view-tab="favourites"><svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9Z"/></svg><span>Favourites</span></button>
       </nav>
       <section id="setup-view" class="view" aria-labelledby="setup-title" hidden>
@@ -40,28 +40,31 @@
       </section>
 
       <section id="dashboard-view" class="view" aria-labelledby="dashboard-title" hidden>
-        <header class="topbar">
-          <div>
-            <p class="eyebrow"><span id="event-label"></span></p>
-            <h1 id="dashboard-title">Competition watchlist</h1>
+        <header class="topbar navbar">
+          <div class="nav-title">
+            <h1 id="dashboard-title">Watch list</h1>
+            <p class="nav-sub"><span id="event-label"></span></p>
           </div>
-          <button id="refresh-button" class="icon-button" type="button" aria-label="Refresh results" title="Refresh results">
-            <span aria-hidden="true">↻</span>
-          </button>
+          <div class="nav-actions">
+            <button id="refresh-button" class="icon-button nav-icon" type="button" aria-label="Refresh results" title="Refresh results"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></button>
+            <button id="show-results-button" class="icon-button nav-icon" type="button" aria-label="Judges' scores for your people" title="Judges' scores" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 6h3v1a3 3 0 0 1-3 3M7 6H4v1a3 3 0 0 0 3 3"/></svg></button>
+            <button id="add-person-button" class="icon-button nav-icon nav-icon-accent" type="button" aria-label="Add person" title="Add person" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+          </div>
         </header>
-        <div id="status-banner" class="status-banner" role="status" hidden></div>
-        <p class="field-note refresh-note">Results do not refresh automatically. Pull down or tap ↻ to fetch the latest updates.</p>
-        <button id="show-results-button" class="button button-results" type="button" hidden><span aria-hidden="true">🏆</span> Show results</button>
-        <div id="list-toolbar" class="list-toolbar" hidden>
-          <label class="sort-control"><span class="sort-label">Sort</span>
-            <select id="sort-select" aria-label="Sort the watch list">
-              <option value="added">Order added</option>
-              <option value="recent">Recently added</option>
-              <option value="name">Alphabetical</option>
-              <option value="changed">Most recent changes</option>
-            </select>
-          </label>
-          <button id="collapse-all-button" class="toolbar-button" type="button">Collapse all</button>
+        <div id="status-banner" class="status-banner" role="alert" hidden></div>
+        <div class="list-meta">
+          <p id="status-line" class="status-line" role="status" aria-live="polite"></p>
+          <div id="list-toolbar" class="list-toolbar" hidden>
+            <label class="sort-control" title="Sort the watch list"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4"/></svg><span id="sort-label" aria-hidden="true">Added</span>
+              <select id="sort-select" aria-label="Sort the watch list">
+                <option value="added">Order added</option>
+                <option value="recent">Recently added</option>
+                <option value="name">Alphabetical</option>
+                <option value="changed">Most recent changes</option>
+              </select>
+            </label>
+            <button id="collapse-all-button" class="toolbar-button" type="button">Collapse all</button>
+          </div>
         </div>
         <section id="results" class="results" aria-live="polite"></section>
         <section class="dashboard-actions" aria-label="Manage event">
@@ -70,31 +73,30 @@
       </section>
 
       <section id="results-view" class="view" aria-labelledby="results-title" hidden>
-        <button id="back-button" class="back-button" type="button"><span aria-hidden="true">←</span> <span id="back-label">Watch list</span></button>
-        <header class="topbar">
-          <div>
-            <p class="eyebrow"><span id="results-event-label"></span></p>
-            <h1 id="results-title">Results</h1>
+        <header class="topbar navbar">
+          <button id="back-button" class="nav-back" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg><span id="back-label" class="visually-hidden">Watch list</span></button>
+          <div class="nav-title">
+            <h1 id="results-title">Judges' scores</h1>
+            <p class="nav-sub"><span id="results-event-label"></span></p>
           </div>
         </header>
-        <p class="field-note">Judges' scores for every round your people danced. Callback rounds show each judge's Yes, No or alternate vote; finals show each judge's placement.</p>
         <section id="results-list" class="results"></section>
       </section>
 
       <section id="rounds-view" class="view" aria-labelledby="rounds-title" hidden>
-        <button id="rounds-back-button" class="back-button" type="button" hidden><span aria-hidden="true">←</span> <span id="rounds-back-label">All rounds</span></button>
-        <header class="topbar">
-          <div>
-            <p class="eyebrow"><span id="rounds-event-label"></span></p>
+        <header class="topbar navbar">
+          <button id="rounds-back-button" class="nav-back" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg><span id="rounds-back-label" class="visually-hidden">All rounds</span></button>
+          <div class="nav-title">
             <h1 id="rounds-title">All rounds</h1>
-            <p id="rounds-subtitle" class="round-subtitle" hidden></p>
+            <p id="rounds-subtitle" class="nav-sub round-subtitle" hidden></p>
+            <p id="rounds-event-sub" class="nav-sub"><span id="rounds-event-label"></span></p>
           </div>
-          <button id="rounds-refresh-button" class="icon-button" type="button" aria-label="Refresh" title="Refresh">
-            <span aria-hidden="true">↻</span>
-          </button>
+          <div class="nav-actions">
+            <button id="rounds-refresh-button" class="icon-button nav-icon" type="button" aria-label="Refresh" title="Refresh"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></button>
+          </div>
         </header>
         <div id="rounds-status" class="status-banner" role="status" hidden></div>
-        <p id="rounds-note" class="field-note"></p>
+        <p id="rounds-note" class="status-line"></p>
         <section id="rounds-content" class="results" aria-live="polite"></section>
         <section id="rounds-actions" class="dashboard-actions" aria-label="Manage event">
           <button class="button button-danger reset-event-button" type="button">Reset event</button>
@@ -102,14 +104,14 @@
       </section>
 
       <section id="favourites-view" class="view" aria-labelledby="favourites-title" hidden>
-        <header class="topbar">
-          <div>
-            <p class="eyebrow">FROM SWINGPOINTS</p>
+        <header class="topbar navbar">
+          <div class="nav-title">
             <h1 id="favourites-title">Favourites</h1>
+            <p class="nav-sub">From SwingPoints</p>
           </div>
-          <button id="favourites-refresh-button" class="icon-button" type="button" aria-label="Sync favourites from SwingPoints" title="Sync favourites" hidden>
-            <span aria-hidden="true">↻</span>
-          </button>
+          <div class="nav-actions">
+            <button id="favourites-refresh-button" class="icon-button nav-icon" type="button" aria-label="Sync favourites from SwingPoints" title="Sync favourites" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></button>
+          </div>
         </header>
         <div id="favourites-status" class="status-banner" role="status" hidden></div>
         <form id="swingpoints-form" class="stack-form connect-form" hidden>
@@ -130,7 +132,6 @@
     </main>
     <!-- Outside <main>: the views' entry animation would otherwise make it scroll with the page. -->
     <div id="pull-indicator" class="pull-indicator" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></div>
-    <button id="add-person-button" class="fab" type="button" aria-label="Add person" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Add person</span></button>
 
     <dialog id="add-dialog" class="dialog">
       <div class="dialog-heading"><div><p class="eyebrow">WATCH LIST</p><h2>Add a person</h2></div><button id="close-add-dialog" class="close-button" type="button" aria-label="Close">×</button></div>

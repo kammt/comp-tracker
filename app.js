@@ -19,6 +19,7 @@ const elements = {
   eventLabel: document.querySelector('#event-label'),
   results: document.querySelector('#results'),
   status: document.querySelector('#status-banner'),
+  statusLine: document.querySelector('#status-line'),
   refresh: document.querySelector('#refresh-button'),
   addButton: document.querySelector('#add-person-button'),
   resetButtons: document.querySelectorAll('.reset-event-button'),
@@ -41,18 +42,20 @@ const elements = {
   confirmCopy: document.querySelector('#confirm-copy'),
   confirmAction: document.querySelector('#confirm-reset'),
   confirmForm: document.querySelector('#confirm-form'),
-  showResults: document.querySelector('#show-results-button'),
   resultsView: document.querySelector('#results-view'),
   resultsEventLabel: document.querySelector('#results-event-label'),
   resultsList: document.querySelector('#results-list'),
   backButton: document.querySelector('#back-button'),
   backLabel: document.querySelector('#back-label'),
+  showResults: document.querySelector('#show-results-button'),
+  roundsTabLabel: document.querySelector('#rounds-tab-label'),
   viewTabs: document.querySelector('#view-tabs'),
   viewTabButtons: [...document.querySelectorAll('[data-view-tab]')],
   roundsView: document.querySelector('#rounds-view'),
   roundsBack: document.querySelector('#rounds-back-button'),
   roundsBackLabel: document.querySelector('#rounds-back-label'),
   roundsEventLabel: document.querySelector('#rounds-event-label'),
+  roundsEventSub: document.querySelector('#rounds-event-sub'),
   roundsTitle: document.querySelector('#rounds-title'),
   roundsSubtitle: document.querySelector('#rounds-subtitle'),
   roundsRefresh: document.querySelector('#rounds-refresh-button'),
@@ -62,6 +65,7 @@ const elements = {
   pullIndicator: document.querySelector('#pull-indicator'),
   listToolbar: document.querySelector('#list-toolbar'),
   sortSelect: document.querySelector('#sort-select'),
+  sortLabel: document.querySelector('#sort-label'),
   collapseAll: document.querySelector('#collapse-all-button'),
   favouritesView: document.querySelector('#favourites-view'),
   favouritesRefresh: document.querySelector('#favourites-refresh-button'),
@@ -137,19 +141,13 @@ function sortOrder() {
   return SORT_ORDERS.includes(prefs.sort) ? prefs.sort : 'added';
 }
 
-// The Add person button shows its label at first, then shrinks to a round + so it covers less of the list.
-const FAB_COLLAPSE_DELAY = 5000;
-let fabCollapseTimer = null;
-
-function scheduleFabCollapse() {
-  if (fabCollapseTimer !== null) return;
-  fabCollapseTimer = setTimeout(() => elements.addButton.classList.add('is-collapsed'), FAB_COLLAPSE_DELAY);
-}
-
 // The tab bar has two sets of pages: Home and Favourites before an event is picked,
 // Watch list and All rounds during one.
 const EVENT_TABS = ['dashboard', 'rounds'];
 const HOME_TABS = ['setup', 'favourites'];
+
+// Short names for the sort button; the menu itself lists the full names.
+const SORT_LABELS = { added: 'Added', recent: 'Newest', name: 'A–Z', changed: 'Changed' };
 
 // `tab` is the tab bar entry to highlight; the tab bar only shows on the top-level pages.
 function showView(view, tab = null) {
@@ -162,14 +160,19 @@ function showView(view, tab = null) {
   elements.favouritesView.hidden = view !== 'favourites';
   elements.viewTabs.hidden = !tab;
   elements.addButton.hidden = view !== 'dashboard';
-  if (view === 'dashboard') scheduleFabCollapse();
-  document.body.classList.toggle('has-fab', view === 'dashboard');
   // On phones the tab bar is pinned to the bottom, so the page needs room below its content.
   document.body.classList.toggle('has-tab-bar', Boolean(tab));
   elements.viewTabButtons.forEach((button) => button.setAttribute('aria-selected', String(button.dataset.viewTab === tab)));
 }
 
+// The watch list keeps progress and "Updated …" notes to one quiet line under the nav bar;
+// only errors get a banner.
 function setStatus(message, kind = 'info', statusElement = elements.status) {
+  if (statusElement === elements.status) {
+    const isError = kind === 'error' && Boolean(message);
+    elements.statusLine.textContent = isError ? updatedText() : message;
+    if (!isError) message = '';
+  }
   statusElement.textContent = message;
   statusElement.dataset.kind = kind;
   statusElement.hidden = !message;
@@ -463,7 +466,12 @@ function sameParticipant(previous, next) {
 }
 
 function changeSummaryText(changedCount) {
-  return `${changedCount} ${changedCount === 1 ? "person's" : "people's"} info changed on this update.`;
+  if (!changedCount) return 'no changes';
+  return `${changedCount} ${changedCount === 1 ? 'person' : 'people'} changed`;
+}
+
+function updatedText() {
+  return state?.fetchedAt ? `Updated ${formatTime(state.fetchedAt, true)} · ${changeSummaryText(state.changedCount || 0)}` : '';
 }
 
 function setRefreshing(isRefreshing) {
@@ -547,9 +555,12 @@ async function runRefresh() {
     saveState();
     renderAll();
     const failed = settled.filter((item) => item.status === 'rejected').length;
-    const changeSummary = changeSummaryText(changedCount);
     const resultsNote = resultsFailed ? ' Some competition results could not be loaded; cached results are shown where available.' : '';
-    setStatus(failed ? `${failed} result${failed === 1 ? '' : 's'} could not be refreshed. Cached data is shown where available. ${changeSummary}${resultsNote}` : `Updated ${formatTime(current.fetchedAt)}. ${changeSummary}${resultsNote}`, failed || resultsFailed ? 'error' : 'info');
+    if (failed || resultsFailed) {
+      setStatus(failed ? `${failed} ${failed === 1 ? 'person' : 'people'} could not be refreshed. Cached data is shown where available.${resultsNote}` : resultsNote.trim(), 'error');
+    } else {
+      setStatus(updatedText());
+    }
     scheduleChangedIndicatorReset();
   } finally {
     setRefreshing(false);
@@ -591,52 +602,42 @@ function isCollapsed(query) {
   return (state?.collapsed || []).includes(query);
 }
 
+const CHEVRON_RIGHT = '<svg class="row-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
+const TRASH_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
+
 function renderResults() {
   const results = state?.results || [];
   elements.listToolbar.hidden = results.length < 2;
   elements.sortSelect.value = sortOrder();
+  elements.sortLabel.textContent = SORT_LABELS[sortOrder()];
   updateCollapseAllButton();
   if (!results.length) {
-    elements.results.innerHTML = '<div class="empty-state">No results yet.</div>';
+    elements.results.innerHTML = '<div class="empty-state">No one on your watch list yet. Tap + to add a person.</div>';
     return;
   }
   const showChangeTime = sortOrder() === 'changed';
+  // Each person is a grouped list: a header row, then one row per competition. Expanded,
+  // every competition also lists its rounds as indented rows that open the round.
   elements.results.innerHTML = sortedResults(results).map((participant, index) => {
     const collapsed = isCollapsed(participant.query);
     const bodyId = `person-body-${index}`;
-    const changedTime = showChangeTime && participant.changedAt ? ` · changed ${escapeHtml(formatTime(participant.changedAt))}` : '';
+    const changedTime = showChangeTime && participant.changedAt ? ` · ${escapeHtml(formatTime(participant.changedAt, true))}` : '';
     return `
     <article class="participant${participant.changed ? ' is-changed' : ''}${collapsed ? ' is-collapsed' : ''}" data-person="${escapeHtml(participant.query)}">
-      <header class="participant-header"><div class="participant-heading"><h2 class="participant-name"><button class="participant-toggle" type="button" aria-expanded="${!collapsed}" aria-controls="${bodyId}">${escapeHtml(participant.name)}</button></h2><span class="bib">Bib: ${escapeHtml(participant.query)}${changedTime}</span></div><div class="participant-tools">${participant.changed ? '<strong class="change-label">CHANGED</strong>' : ''}<button class="remove-button" type="button" data-remove-query="${escapeHtml(participant.query)}" aria-label="Remove ${escapeHtml(participant.name)}" title="Remove person">×</button><span class="participant-chevron" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></div></header>
-      <div class="participant-summary collapsible"${collapsed ? '' : ' inert'}><div>${renderParticipantSummary(participant)}</div></div>
-      <div id="${bodyId}" class="participant-body collapsible"${collapsed ? ' inert' : ''}><div>${renderParticipantBody(participant)}</div></div>
+      <header class="participant-header"><h2 class="participant-name"><button class="participant-toggle" type="button" aria-expanded="${!collapsed}" aria-controls="${bodyId}">${escapeHtml(participant.name)}</button></h2>${participant.changed ? '<strong class="change-label">Changed</strong>' : ''}<span class="bib">Bib ${escapeHtml(participant.query)}${changedTime}</span><button class="remove-button" type="button" data-remove-query="${escapeHtml(participant.query)}" aria-label="Remove ${escapeHtml(participant.name)}" title="Remove person"${collapsed ? ' tabindex="-1"' : ''}>${TRASH_ICON}</button><span class="participant-chevron" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></header>
+      <div id="${bodyId}" class="participant-body panel">${renderParticipantBody(participant, collapsed)}</div>
     </article>`;
   }).join('');
-}
-
-// One line per competition for a collapsed card: the latest round they danced and how it went.
-function renderParticipantSummary(participant) {
-  const competitions = participant.competitions || [];
-  if (!competitions.length) {
-    return `<p class="summary-note${participant.error ? ' is-error' : ''}">${escapeHtml(participant.error || 'No competition details found.')}</p>`;
-  }
-  return `<ul class="summary-list">${competitions.map((competition) => {
-    const latest = competition.rounds.filter((round) => round.status === 'in').at(-1);
-    let progress = '<span class="summary-round out">Not in a round</span>';
-    if (latest) {
-      const detail = renderRoundResultChip(latest.result) || (latest.heat ? `<span class="heat">${escapeHtml(latest.heat)}</span>` : '');
-      progress = `<span class="summary-round">${escapeHtml(latest.name)}</span>${detail}`;
-    }
-    return `<li class="summary-competition"><span class="summary-title">${escapeHtml(competition.title)}</span>${progress}</li>`;
-  }).join('')}</ul>`;
 }
 
 function setCardCollapsed(card, collapsed) {
   card.classList.toggle('is-collapsed', collapsed);
   card.querySelector('.participant-toggle').setAttribute('aria-expanded', String(!collapsed));
-  // Keeps the hidden part out of the tab order and away from screen readers.
-  card.querySelector('.participant-body').inert = collapsed;
-  card.querySelector('.participant-summary').inert = !collapsed;
+  // Keeps the folded rounds out of the tab order and away from screen readers.
+  card.querySelectorAll('.comp-rounds').forEach((rounds) => { rounds.inert = collapsed; });
+  const remove = card.querySelector('.remove-button');
+  if (collapsed) remove.setAttribute('tabindex', '-1');
+  else remove.removeAttribute('tabindex');
 }
 
 // Updates the cards in place (instead of re-rendering) so they animate open and shut.
@@ -664,19 +665,42 @@ function roundInfo(roundId) {
   return (state?.rounds || []).find((round) => round.id === String(roundId)) || null;
 }
 
-function renderParticipantBody(participant) {
-  const competitions = (participant.competitions || []).map((competition) => renderCompetition(competition, participant)).join('');
+function renderParticipantBody(participant, collapsed) {
+  const competitions = (participant.competitions || []).map((competition) => renderCompetition(competition, participant, collapsed)).join('');
   if (!participant.error) return competitions || '<p class="participant-error">No competition details found.</p>';
   const prefix = competitions ? 'Showing cached results. ' : '';
   return `<p class="participant-error">${escapeHtml(prefix + participant.error)}</p>${competitions}`;
 }
 
-// Each round opens its heat lists, or this person's scores once results are out.
-function renderCompetition(competition, participant) {
-  return `<section class="competition"><h3 class="competition-title">${escapeHtml(competition.title)}</h3>${competition.role ? `<p class="meta-line">Role: ${escapeHtml(competition.role)}</p>` : ''}${competition.partner ? `<p class="meta-line">Partner: ${escapeHtml(competition.partner)}</p>` : ''}<div class="rounds">${competition.rounds.map((round) => {
+// "heat1 heat4" → "Heat 1, 4"
+function heatText(heat) {
+  const numbers = String(heat || '').match(/\d+/g);
+  return numbers ? `Heat ${numbers.join(', ')}` : '';
+}
+
+function competitionMeta(competition) {
+  return [competition.role, competition.partner && `with ${competition.partner}`].filter(Boolean).map(escapeHtml).join(' · ');
+}
+
+// A competition row (with the latest round they danced on the right); its rounds fold away.
+function renderCompetition(competition, participant, collapsed) {
+  const latest = competition.rounds.filter((round) => round.status === 'in').at(-1);
+  let progress = '<span class="comp-progress is-out">Not in a round</span>';
+  if (latest) {
+    const detail = renderRoundResultChip(latest.result) || (latest.heat ? `<span class="heat">${escapeHtml(heatText(latest.heat))}</span>` : '');
+    progress = `<span class="comp-progress"><span class="comp-round">${escapeHtml(latest.name)}</span>${detail}</span>`;
+  }
+  const meta = competitionMeta(competition);
+  // Collapsed cards show one dot per round instead of the round rows: filled for rounds they
+  // made, hollow for the rest, and a medal colour for a top-5 final placement.
+  const final = latest && hasResult(latest.result) && latest.result.kind === 'final' ? latest : null;
+  const pips = `<span class="pips" aria-hidden="true">${competition.rounds.map((round) => `<i class="pip ${round.status === 'in' ? 'in' : 'out'}${round === final ? ` final ${placeClass(round.result.placement)}` : ''}"></i>`).join('')}</span>`;
+  const rounds = competition.rounds.map((round) => {
     const label = `${competition.title} ${round.name}: ${isRoundPublished(round) ? 'show results' : 'show heat lists'}`;
-    return `<button class="round round-link" type="button" data-open-round="${escapeHtml(round.id || '')}" data-bib="${escapeHtml(participant.query)}" data-heat="${escapeHtml((String(round.heat || '').match(/\d+/) || [''])[0])}" aria-label="${escapeHtml(label)}"><span class="round-name">${escapeHtml(round.name)}</span><span class="round-status ${round.status}">${round.status === 'in' ? '✓ In' : '× Out'}</span>${round.heat ? `<span class="heat">${escapeHtml(round.heat)}</span>` : ''}${renderRoundResultChip(round.result)}</button>`;
-  }).join('')}</div></section>`;
+    const detail = round.status === 'in' ? escapeHtml(heatText(round.heat) || 'In') : 'Out';
+    return `<li><button class="round-row round-link is-${round.status}" type="button" data-open-round="${escapeHtml(round.id || '')}" data-bib="${escapeHtml(participant.query)}" data-heat="${escapeHtml((String(round.heat || '').match(/\d+/) || [''])[0])}" aria-label="${escapeHtml(label)}"><span class="round-row-name">${escapeHtml(round.name)}</span><span class="round-row-detail">${detail}</span>${round.status === 'in' ? renderRoundResultChip(round.result) : ''}${CHEVRON_RIGHT}</button></li>`;
+  }).join('');
+  return `<section class="competition"><div class="comp-row"><div class="comp-main"><h3 class="competition-title">${escapeHtml(competition.title)}</h3>${meta ? `<p class="meta-line">${meta}</p>` : ''}</div>${pips}${progress}</div>${rounds ? `<div class="comp-rounds collapsible"${collapsed ? ' inert' : ''}><div><ul class="round-rows">${rounds}</ul></div></div>` : ''}</section>`;
 }
 
 function isRoundPublished(round) {
@@ -728,34 +752,39 @@ function renderParticipantResults(participant) {
   const competitions = (participant.competitions || []).filter((competition) => competition.rounds.some((round) => round.status === 'in'));
   const body = competitions.map((competition) => renderCompetitionResults(competition, participant)).join('') || '<p class="participant-error">No competition details found.</p>';
   return `<article class="participant" data-focus-key="${escapeHtml(participant.query)}">
-      <header class="participant-header"><div><h2 class="participant-name">${escapeHtml(participant.name)}</h2><span class="bib">Bib ${escapeHtml(participant.query)}</span></div></header>
-      ${body}
+      <header class="participant-header"><h2 class="participant-name">${escapeHtml(participant.name)}</h2><span class="bib">Bib ${escapeHtml(participant.query)}</span></header>
+      <div class="participant-body panel">${body}</div>
     </article>`;
 }
 
 function renderCompetitionResults(competition, participant) {
   const danced = competition.rounds.filter((round) => round.status === 'in');
   const final = danced.find((round) => hasResult(round.result) && round.result.kind === 'final');
-  const meta = [competition.role, competition.partner && `Partner: ${competition.partner}`].filter(Boolean).map(escapeHtml).join(' · ');
+  const partner = final?.result.partner && !competition.partner ? `with ${escapeHtml(final.result.partner)}` : '';
+  const meta = [competitionMeta(competition), partner].filter(Boolean).join(' · ');
   // Newest round first, so the final (the result that matters most) leads.
   const rounds = [...danced].reverse().map((round) => renderRoundResults(round, participant)).join('');
-  const hero = final ? `<div class="placement-hero ${placeClass(final.result.placement)}"><span class="placement-number">${renderPlacement(final.result.value)}</span><span class="placement-copy"><strong>Final placement</strong><span>of ${final.result.fieldSize}${final.result.partner ? ` · with ${escapeHtml(final.result.partner)}` : ''}</span></span></div>` : '';
-  return `<section class="competition"><h3 class="competition-title">${escapeHtml(competition.title)}</h3>${meta ? `<p class="meta-line">${meta}</p>` : ''}${hero}${rounds}</section>`;
+  const placement = final ? `<span class="placement ${placeClass(final.result.placement)}" aria-label="Final placement ${escapeHtml(final.result.value)} of ${final.result.fieldSize}"><span>${renderPlacement(final.result.value)}</span><small>of ${final.result.fieldSize}</small></span>` : '';
+  // Judges are shown by initials; their full names are listed once per competition.
+  const judges = new Map();
+  danced.forEach((round) => (hasResult(round.result) ? round.result.judges : []).forEach((judge) => judges.set(judge.initials, judge)));
+  const key = judges.size ? `<details class="judge-key"><summary>Judges</summary><p>${[...judges.values()].map((judge) => `<span><b>${judge.chief ? '♛' : ''}${escapeHtml(judge.initials)}</b> ${escapeHtml(judge.name)}${judge.chief ? ' (chief judge)' : ''}</span>`).join('')}</p></details>` : '';
+  return `<section class="competition"><div class="comp-row"><div class="comp-main"><h3 class="competition-title">${escapeHtml(competition.title)}</h3>${meta ? `<p class="meta-line">${meta}</p>` : ''}</div>${placement}</div><ul class="round-rows">${rounds}</ul>${key}</section>`;
 }
 
 function renderRoundResults(round, participant) {
   const result = round.result;
   let outcome = '<span class="outcome pending">No results yet</span>';
-  if (result?.notFound) outcome = '<span class="outcome pending">Not found in the results</span>';
-  else if (hasResult(result) && result.kind === 'final') outcome = `<span class="outcome final">${escapeHtml(result.value)} of ${result.fieldSize}</span>`;
-  else if (hasResult(result)) {
-    const callback = callbackOutcome(result);
-    outcome = `<span class="outcome ${callback.kind}">${callback.long}${result.value ? ` · Σ ${escapeHtml(result.value)}` : ''}</span>`;
-  }
-  const partner = hasResult(result) && result.partner && result.kind !== 'final' ? `<p class="round-partner">with ${escapeHtml(result.partner)}</p>` : '';
-  const judges = hasResult(result) ? `<div class="judge-grid">${result.judges.map(renderJudgeScore).join('')}</div>` : '';
-  const fullResults = round.id ? `<button class="text-button round-results-link" type="button" data-open-round="${escapeHtml(round.id)}" data-bib="${escapeHtml(participant.query)}">${hasResult(result) ? 'Everyone in this round' : 'Heat lists'} ›</button>` : '';
-  return `<div class="round-results" data-focus-key="${escapeHtml(`${participant.query}:${round.id}`)}"><div class="round-results-head"><span class="round-name">${escapeHtml(round.name)}</span>${outcome}</div>${partner}${judges}${fullResults}</div>`;
+  if (result?.notFound) outcome = '<span class="outcome pending">Not in the results</span>';
+  // A final's placement already leads the competition, so its row doesn't repeat it.
+  else if (hasResult(result)) outcome = result.kind === 'final' ? '' : renderRoundResultChip(result);
+  const partner = hasResult(result) && result.partner && result.kind !== 'final' ? ` <span class="round-row-detail">with ${escapeHtml(result.partner)}</span>` : '';
+  const marks = hasResult(result) ? `<div class="judge-marks">${result.judges.map(renderJudgeScore).join('')}</div>` : '';
+  const head = `<span class="round-row-name">${escapeHtml(round.name)}</span>${partner}<span class="round-row-detail">${hasResult(result) ? 'Everyone' : 'Heat lists'}</span>${outcome}`;
+  const row = round.id
+    ? `<button class="round-row round-link" type="button" data-open-round="${escapeHtml(round.id)}" data-bib="${escapeHtml(participant.query)}" aria-label="${escapeHtml(`${round.name}: ${hasResult(result) ? 'everyone in this round' : 'heat lists'}`)}">${head}${CHEVRON_RIGHT}</button>`
+    : `<div class="round-row">${head}</div>`;
+  return `<li class="round-results" data-focus-key="${escapeHtml(`${participant.query}:${round.id}`)}">${row}${marks}</li>`;
 }
 
 function judgeScoreKind(score) {
@@ -765,10 +794,11 @@ function judgeScoreKind(score) {
   return score ? 'rank' : 'empty';
 }
 
+// One compact mark per judge: initials, then their score (full name on hover and in the Judges list).
 function renderJudgeScore(judge) {
   const kind = judgeScoreKind(judge.score);
-  const score = judge.score ? `${judge.tiebreak ? '<span aria-label="Tie-break score">⚖ </span>' : ''}${escapeHtml(judge.score)}` : '–';
-  return `<div class="judge${judge.chief ? ' chief' : ''}" title="${escapeHtml(judge.name)}"><span class="judge-initials">${judge.chief ? '<span aria-hidden="true">♛</span>' : ''}${escapeHtml(judge.initials)}</span><span class="judge-score ${kind}">${score}</span><span class="judge-name">${escapeHtml(judge.name)}${judge.chief ? '<em>Chief judge</em>' : ''}</span></div>`;
+  const score = judge.score ? `${judge.tiebreak ? '<span aria-label="Tie-break score">⚖</span>' : ''}${escapeHtml(judge.score)}` : '–';
+  return `<span class="judge-mark${judge.chief ? ' chief' : ''}" title="${escapeHtml(`${judge.name}${judge.chief ? ' (chief judge)' : ''}`)}"><abbr title="${escapeHtml(judge.name)}">${judge.chief ? '♛' : ''}${escapeHtml(judge.initials)}</abbr><b class="mark ${kind}">${score}</b></span>`;
 }
 
 function hasAnyResults() {
@@ -777,21 +807,22 @@ function hasAnyResults() {
 
 function renderAll() {
   renderResults();
-  // Results are shown per watched person, so there is nothing to open until someone is added.
+  // Judges' scores are shown per watched person, so there is nothing to open until someone is added.
   const hasPeople = (state?.watchList || []).length > 0;
   elements.showResults.hidden = !(hasPeople && (state?.resultsAvailable || hasAnyResults()));
+  elements.roundsTabLabel.textContent = roundsTitleText();
   if (!elements.resultsView.hidden) renderResultsView();
   if (!elements.roundsView.hidden) renderRoundsView();
   if (!elements.favouritesView.hidden) renderFavourites();
 }
 
-function formatTime(value) {
+function formatTime(value, short = false) {
   const date = new Date(value);
   const isToday = date.toDateString() === new Date().toDateString();
   // Browsers pick 12/24-hour from the language (en-US → AM/PM) and can't see the phone's
   // 24-hour setting, so force a 24-hour clock.
   const options = isToday
-    ? { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }
+    ? { hour: '2-digit', minute: '2-digit', ...(short ? {} : { second: '2-digit' }), hourCycle: 'h23' }
     : { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
   return new Intl.DateTimeFormat(undefined, options).format(date);
 }
@@ -1146,15 +1177,13 @@ function openDashboard() {
   elements.eventLabel.textContent = eventLabelText();
   renderAll();
   scheduleChangedIndicatorReset();
-  if (state.fetchedAt) {
-    setStatus(`Last updated ${formatTime(state.fetchedAt)}. ${changeSummaryText(state.changedCount || 0)}`);
-  }
+  if (state.fetchedAt) setStatus(updatedText());
 }
 
 function openResultsView(params) {
   showView('results');
   elements.resultsEventLabel.textContent = eventLabelText();
-  elements.backLabel.textContent = backLabelText('Watch list');
+  elements.backLabel.textContent = `Back to ${backLabelText('Watch list')}`;
   renderResultsView();
   const bib = params.get('bib');
   if (bib) focusElement(elements.resultsList, params.get('round') ? `${bib}:${params.get('round')}` : bib);
@@ -1280,7 +1309,9 @@ function openRoundsView(params) {
   showView('rounds', roundId ? null : 'rounds');
   elements.roundsEventLabel.textContent = eventLabelText();
   elements.roundsBack.hidden = !roundId;
-  elements.roundsBackLabel.textContent = backLabelText('All rounds');
+  elements.roundsBackLabel.textContent = `Back to ${backLabelText(roundsTitleText())}`;
+  // In a round the nav bar's second line names the round instead of the event.
+  elements.roundsEventSub.hidden = Boolean(roundId);
   setStatus('', 'info', elements.roundsStatus);
   if (!state.rounds) loadRounds();
   else if (roundId) loadRoundDetail(roundId);
@@ -1297,14 +1328,19 @@ function renderRoundsView() {
   else renderRoundIndex();
 }
 
+// Once results are out the round list is where people go for them, so the tab says so.
+function roundsTitleText() {
+  const published = state?.rounds ? state.rounds.some((round) => round.published) : state?.resultsAvailable;
+  return published ? 'Results' : 'All rounds';
+}
+
 function renderRoundIndex() {
-  elements.roundsTitle.textContent = 'All rounds';
+  elements.roundsTitle.textContent = roundsTitleText();
+  elements.roundsTabLabel.textContent = roundsTitleText();
   elements.roundsTitle.classList.remove('is-round');
   elements.roundsSubtitle.hidden = true;
   const rounds = state.rounds || [];
-  elements.roundsNote.textContent = state.roundsFetchedAt
-    ? `Tap a round to see who dances in which heat, or everyone's results once they are published. Round list loaded ${formatTime(state.roundsFetchedAt)}.`
-    : "Tap a round to see who dances in which heat, or everyone's results once they are published.";
+  elements.roundsNote.textContent = state.roundsFetchedAt ? `Updated ${formatTime(state.roundsFetchedAt, true)} · tap a round for heats or results` : 'Tap a round for its heat lists or results';
   if (!rounds.length) {
     elements.roundsContent.innerHTML = roundsLoading
       ? '<div class="empty-state is-loading">Loading rounds…</div>'
@@ -1318,12 +1354,12 @@ function renderRoundIndex() {
     if (!competitions.has(competition)) competitions.set(competition, []);
     competitions.get(competition).push(round);
   });
-  elements.roundsContent.innerHTML = `<article class="participant">${[...competitions].map(([competition, items]) => `<section class="competition"><h3 class="competition-title">${escapeHtml(competition)}</h3><div class="rounds">${items.map((round) => {
+  elements.roundsContent.innerHTML = [...competitions].map(([competition, items]) => `<section class="group"><h2 class="group-title">${escapeHtml(competition)}</h2><ul class="round-rows panel">${items.map((round) => {
     const people = watched.get(round.id) || [];
     const kind = round.published ? '<span class="round-kind results">Results</span>' : round.heats ? `<span class="round-kind heats">${round.heats} heat${round.heats === 1 ? '' : 's'}</span>` : '<span class="round-kind pending">Not out yet</span>';
     const time = roundTime(round.start);
-    return `<button class="round round-link" type="button" data-open-round="${escapeHtml(round.id)}"><span class="round-name">${escapeHtml(roundCompetition(round.name).round || round.name)}</span><span class="round-meta">${kind}${time ? `<span class="round-time">${escapeHtml(time)}</span>` : ''}</span>${people.length ? `<span class="round-watch" title="${escapeHtml(people.map((person) => person.name).join(', '))}">${people.length} of yours</span>` : ''}</button>`;
-  }).join('')}</div></section>`).join('')}</article>`;
+    return `<li><button class="round-row round-link" type="button" data-open-round="${escapeHtml(round.id)}"><span class="round-row-name">${escapeHtml(roundCompetition(round.name).round || round.name)}</span>${people.length ? `<span class="round-watch" title="${escapeHtml(people.map((person) => person.name).join(', '))}">${people.length} of yours</span>` : ''}<span class="round-row-detail">${kind}${time ? ` · <span class="round-time">${escapeHtml(time)}</span>` : ''}</span>${CHEVRON_RIGHT}</button></li>`;
+  }).join('')}</ul></section>`).join('');
 }
 
 function renderRoundDetail(roundId) {
@@ -1341,7 +1377,7 @@ function renderRoundDetail(roundId) {
   const error = roundErrors.get(roundId);
   const usable = cached && (!kind || cached.kind === kind) ? cached : null;
   const noun = kind === 'results' ? 'Results' : 'Heat lists';
-  elements.roundsNote.textContent = usable ? `${noun} loaded ${formatTime(usable.fetchedAt)}. They do not refresh automatically; pull down or use ↻ to check for changes.` : '';
+  elements.roundsNote.textContent = usable ? `${noun} loaded ${formatTime(usable.fetchedAt, true)} · pull down to update` : '';
   if (error) setStatus(`${error}${usable ? ' Showing the copy loaded earlier.' : ''}`, usable ? 'error' : 'info', elements.roundsStatus);
   if (!usable) {
     elements.roundsContent.innerHTML = loading
@@ -1393,8 +1429,8 @@ function renderMarshalList(data) {
     body = `<div class="lineup-columns">${column('Leaders', heat.leaders)}${column('Followers', heat.followers)}</div>`;
   }
   const twiceNote = [...heat.leaders, ...heat.followers].some((person) => person.twice) ? '<p class="field-note lineup-note">1/2 and 2/2 mark people who dance twice in this round.</p>' : '';
-  const heading = `<h3 class="competition-title">Heat ${heat.number}${data.heats.length > 1 ? ` <span class="of-heats">of ${data.heats.length}</span>` : ''}</h3>`;
-  return `${tabs}<article class="participant"><div class="competition">${heading}${body}${twiceNote}</div></article>`;
+  const heading = `<h2 class="group-title">Heat ${heat.number}${data.heats.length > 1 ? ` <span class="of-heats">of ${data.heats.length}</span>` : ''}</h2>`;
+  return `${tabs}<section class="group">${heading}<div class="panel lineup-panel">${body}</div>${twiceNote}</section>`;
 }
 
 function shortMark(value, kind) {
@@ -1428,14 +1464,14 @@ function renderRoundStandings(data) {
       const place = data.kind === 'final' ? placeClass(rank) : '';
       return `<li class="standing${watched ? ' is-watched' : ''}${place ? ` ${place}` : ''}"${watched ? ` data-focus-key="${escapeHtml(watched)}"` : ''}><span class="standing-rank">${data.kind === 'final' ? renderPlacement(ordinal(rank)) : rank}</span><span class="standing-main">${names}<span class="standing-marks">${marks}</span></span>${outcome}</li>`;
     }).join('');
-    const label = table.label ? `<h3 class="competition-title">${table.label} <span class="of-heats">${table.rows.length}</span></h3>` : '';
-    return `<article class="participant"><div class="competition">${label}${legend}<ol class="standings">${rows}</ol></div></article>`;
+    const label = table.label ? `${table.label} <span class="of-heats">${table.rows.length}</span>` : `${table.rows.length} couples`;
+    return `<section class="group"><h2 class="group-title">${label}</h2>${legend}<ol class="standings panel">${rows}</ol></section>`;
   });
   return tables.join('');
 }
 
 function backLabelText(fallback) {
-  return { dashboard: 'Watch list', rounds: 'All rounds', results: 'Results' }[history.state?.from] || fallback;
+  return { dashboard: 'Watch list', rounds: roundsTitleText(), results: "Judges' scores" }[history.state?.from] || fallback;
 }
 
 function currentPage() {
@@ -1526,7 +1562,6 @@ async function refreshRounds() {
 }
 elements.roundsRefresh.addEventListener('click', refreshRounds);
 
-elements.showResults.addEventListener('click', () => navigate('#results', 'dashboard'));
 function goBack(fallbackHash) {
   if (history.state?.from) {
     history.back();
@@ -1537,6 +1572,7 @@ function goBack(fallbackHash) {
   window.scrollTo(0, 0);
 }
 elements.backButton.addEventListener('click', () => goBack());
+elements.showResults.addEventListener('click', () => navigate('#results', 'dashboard'));
 elements.roundsBack.addEventListener('click', () => goBack('#rounds'));
 window.addEventListener('popstate', route);
 
