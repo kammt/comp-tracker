@@ -13,11 +13,14 @@ Instead of searching for each person on the event wall one by one, you build a w
 - **All rounds:** the *All rounds* tab lists every round of the event. Open one to see its heat lists (who dances in which heat, with your people highlighted), or the full results with every judge's marks once they are published.
 - **Tap a round:** tapping a round on someone's card opens that round's heat lists on their heat, or, once results are out, jumps to their scores on the results page.
 - **Results:** once an event publishes results, each round shows the callback outcome or final placement, and *Show results* lists every judge's score (with full judge names) for every round your people danced.
+- **Favourites from SwingPoints:** before you pick an event, the home screen has a *Favourites* tab. It signs in to your [SwingPoints](https://apps.apple.com/app/swingpoints/id1214670404) account and lists the dancers you follow there, with their WSDC ID, roles and highest division. Tap ↻ or pull down to sync the list again. SwingPoints has no public API, so this uses the API of its own app and may stop working if that changes.
+- **Bulk add (opt-in):** during an event, *Add person → By name* shows a banner once the competitor list is loaded: how many of your favourites compete there but aren't on your watch list yet. *Review and add* lists them, matched by name, and adds the ones you tick in one go. It is hidden until you turn it on: open CompTracker with `?enable=bulk-add` (`?disable=bulk-add` turns it off), or tap the *Favourites* title five times in a row (handy for a home-screen app, which keeps its own storage).
 - **Change highlighting:** after a refresh, people whose results changed are briefly marked as *CHANGED*.
 - **Refresh on demand:** results only update when you pull down, tap the refresh button or reload the page, so the app never polls scoring.dance in the background.
 - **Works like an app:** add it to your home screen. The last fetched results stay visible even when the connection drops.
 - **Light on traffic:** CompTracker reads scoring.dance's JSON API (`scoring.dance/api/`) instead of loading whole web pages.
-- **Private by design:** your event and watch list are stored only in your browser's local storage. There is no account and no server.
+- **Private by design:** your event and watch list are stored only in your browser's local storage. There is no CompTracker account and no server.
+- **Your SwingPoints login stays on your device:** it is encrypted (AES-GCM) with a key your browser creates and keeps in IndexedDB as non-extractable, so the key can be used by CompTracker but never read out. The login is sent only to SwingPoints, over HTTPS. *Log out* (next to the sync time on the Favourites tab) deletes the login, the key and the favourites. A web page cannot hide data from code running on the page itself, so this protects the stored login, not a compromised page.
 
 ## How to use
 1. Pick your event under *Happening now*. CompTracker lists the scoring.dance events that are running right now.

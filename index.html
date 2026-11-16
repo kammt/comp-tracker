@@ -14,8 +14,10 @@
   <body>
     <main class="app-shell">
       <nav id="view-tabs" class="tabs view-tabs" role="tablist" aria-label="View" hidden>
+        <button class="tab" type="button" role="tab" aria-selected="false" data-view-tab="setup"><svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9v11h13V9"/><path d="M10 20v-5.5h4V20"/></svg><span>Home</span></button>
         <button class="tab" type="button" role="tab" aria-selected="true" data-view-tab="dashboard"><svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><span>Watch list</span></button>
         <button class="tab" type="button" role="tab" aria-selected="false" data-view-tab="rounds"><svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg><span>All rounds</span></button>
+        <button class="tab" type="button" role="tab" aria-selected="false" data-view-tab="favourites"><svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9Z"/></svg><span>Favourites</span></button>
       </nav>
       <section id="setup-view" class="view" aria-labelledby="setup-title" hidden>
         <img class="intro-mark" src="icon.svg" alt="" aria-hidden="true" />
@@ -98,6 +100,33 @@
           <button class="button button-danger reset-event-button" type="button">Reset event</button>
         </section>
       </section>
+
+      <section id="favourites-view" class="view" aria-labelledby="favourites-title" hidden>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">FROM SWINGPOINTS</p>
+            <h1 id="favourites-title">Favourites</h1>
+          </div>
+          <button id="favourites-refresh-button" class="icon-button" type="button" aria-label="Sync favourites from SwingPoints" title="Sync favourites" hidden>
+            <span aria-hidden="true">↻</span>
+          </button>
+        </header>
+        <div id="favourites-status" class="status-banner" role="status" hidden></div>
+        <form id="swingpoints-form" class="stack-form connect-form" hidden>
+          <p class="dialog-copy">Sign in with your SwingPoints account to bring in the dancers you follow there.</p>
+          <label for="swingpoints-email">SwingPoints email</label>
+          <input id="swingpoints-email" name="email" type="email" autocomplete="username" autocapitalize="off" spellcheck="false" required />
+          <label for="swingpoints-password">Password</label>
+          <input id="swingpoints-password" name="password" type="password" autocomplete="current-password" required />
+          <button id="swingpoints-submit" class="button button-primary" type="submit"><span id="swingpoints-submit-label">Sign in and sync</span></button>
+          <p id="swingpoints-storage-note" class="field-note">Your login is stored encrypted on this device only and is sent to nobody but SwingPoints.</p>
+        </form>
+        <div id="favourites-account" class="favourites-account" hidden>
+          <p id="favourites-note" class="field-note favourites-note"></p>
+          <button id="swingpoints-sign-out" class="button button-secondary button-small" type="button">Log out</button>
+        </div>
+        <section id="favourites-list" class="favourites-list" aria-live="polite"></section>
+      </section>
     </main>
     <!-- Outside <main>: the views' entry animation would otherwise make it scroll with the page. -->
     <div id="pull-indicator" class="pull-indicator" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></div>
@@ -117,14 +146,26 @@
       <form id="name-form" class="stack-form" role="tabpanel" aria-labelledby="add-tab-name" hidden>
         <div class="roster-status">
           <p id="roster-copy" class="dialog-copy" aria-live="polite"></p>
-          <button id="roster-button" class="button button-secondary" type="button"><span id="roster-button-label">Load competitor list</span></button>
+          <button id="roster-button" class="button button-secondary button-small" type="button"><span id="roster-button-label">Load competitor list</span></button>
+        </div>
+        <div id="favourites-banner" class="favourites-banner" role="status" hidden>
+          <p id="favourites-banner-copy" class="favourites-banner-copy"></p>
+          <button id="favourites-banner-button" class="button button-primary button-small" type="button">Review</button>
         </div>
         <div id="name-search" class="name-search" hidden>
-          <label for="name-query">First or last name</label>
-          <input id="name-query" name="nameQuery" type="search" autocomplete="off" autocapitalize="words" spellcheck="false" aria-describedby="name-suggestions-note" />
-          <p id="name-suggestions-note" class="field-note">Tap a name to add their bib to your watch list.</p>
+          <label for="name-query" class="visually-hidden">First or last name</label>
+          <input id="name-query" name="nameQuery" type="search" placeholder="First or last name" autocomplete="off" autocapitalize="words" spellcheck="false" aria-describedby="name-suggestions-note" />
+          <p id="name-suggestions-note" class="visually-hidden">Tap a name to add their bib to your watch list.</p>
           <div id="name-suggestions" class="suggestions" aria-live="polite"></div>
         </div>
+      </form>
+    </dialog>
+    <dialog id="bulk-dialog" class="dialog">
+      <form id="bulk-form" class="stack-form">
+        <div class="dialog-heading"><div><p class="eyebrow">FAVOURITES</p><h2>Add to watch list</h2></div><button id="close-bulk-dialog" class="close-button" type="button" aria-label="Close">×</button></div>
+        <p id="bulk-copy" class="dialog-copy" aria-live="polite"></p>
+        <div id="bulk-list" class="bulk-list"></div>
+        <div class="dialog-actions"><button id="bulk-reload" class="button button-secondary" type="button"><span id="bulk-reload-label">Reload competitor list</span></button><button id="bulk-submit" class="button button-primary" type="submit">Add people</button></div>
       </form>
     </dialog>
     <dialog id="event-id-dialog" class="dialog">

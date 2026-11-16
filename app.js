@@ -63,11 +63,38 @@ const elements = {
   listToolbar: document.querySelector('#list-toolbar'),
   sortSelect: document.querySelector('#sort-select'),
   collapseAll: document.querySelector('#collapse-all-button'),
+  favouritesView: document.querySelector('#favourites-view'),
+  favouritesTitle: document.querySelector('#favourites-title'),
+  favouritesRefresh: document.querySelector('#favourites-refresh-button'),
+  favouritesStatus: document.querySelector('#favourites-status'),
+  favouritesNote: document.querySelector('#favourites-note'),
+  favouritesList: document.querySelector('#favourites-list'),
+  favouritesAccount: document.querySelector('#favourites-account'),
+  swingPointsForm: document.querySelector('#swingpoints-form'),
+  swingPointsEmail: document.querySelector('#swingpoints-email'),
+  swingPointsPassword: document.querySelector('#swingpoints-password'),
+  swingPointsSubmit: document.querySelector('#swingpoints-submit'),
+  swingPointsSubmitLabel: document.querySelector('#swingpoints-submit-label'),
+  swingPointsStorageNote: document.querySelector('#swingpoints-storage-note'),
+  swingPointsSignOut: document.querySelector('#swingpoints-sign-out'),
+  favouritesBanner: document.querySelector('#favourites-banner'),
+  favouritesBannerCopy: document.querySelector('#favourites-banner-copy'),
+  favouritesBannerButton: document.querySelector('#favourites-banner-button'),
+  bulkDialog: document.querySelector('#bulk-dialog'),
+  closeBulkDialog: document.querySelector('#close-bulk-dialog'),
+  bulkForm: document.querySelector('#bulk-form'),
+  bulkCopy: document.querySelector('#bulk-copy'),
+  bulkList: document.querySelector('#bulk-list'),
+  bulkReload: document.querySelector('#bulk-reload'),
+  bulkReloadLabel: document.querySelector('#bulk-reload-label'),
+  bulkSubmit: document.querySelector('#bulk-submit'),
 };
 
 let state = readState();
 let pendingEvent = null;
 let pendingRemoval = null;
+// The confirm dialog is shared by Reset event, Remove person and Sign out of SwingPoints.
+let pendingSignOut = false;
 let changedIndicatorTimer = null;
 let refreshInFlight = null;
 let refreshQueued = false;
@@ -111,6 +138,34 @@ function sortOrder() {
   return SORT_ORDERS.includes(prefs.sort) ? prefs.sort : 'added';
 }
 
+// Features that stay hidden unless turned on for this device: open the app with
+// ?enable=<feature> (or ?disable=<feature>), or tap the Favourites title five times in a row
+// (a home-screen app on iOS keeps its own storage, so a link opened in Safari would not reach it).
+const FEATURES = ['bulk-add'];
+
+function hasFeature(feature) {
+  return Array.isArray(prefs.features) && prefs.features.includes(feature);
+}
+
+function setFeature(feature, enabled) {
+  const others = (Array.isArray(prefs.features) ? prefs.features : []).filter((item) => item !== feature);
+  prefs.features = enabled ? [...others, feature] : others;
+  savePrefs();
+}
+
+function applyFeatureParams() {
+  const params = new URLSearchParams(location.search);
+  let changed = false;
+  [['enable', true], ['disable', false]].forEach(([name, enabled]) => {
+    params.getAll(name).flatMap((value) => value.split(',')).filter((feature) => FEATURES.includes(feature)).forEach((feature) => setFeature(feature, enabled));
+    if (params.has(name)) {
+      params.delete(name);
+      changed = true;
+    }
+  });
+  if (changed) history.replaceState(history.state, '', `${location.pathname}${params.size ? `?${params}` : ''}${location.hash}`);
+}
+
 // The Add person button shows its label at first, then shrinks to a round + so it covers less of the list.
 const FAB_COLLAPSE_DELAY = 5000;
 let fabCollapseTimer = null;
@@ -120,12 +175,20 @@ function scheduleFabCollapse() {
   fabCollapseTimer = setTimeout(() => elements.addButton.classList.add('is-collapsed'), FAB_COLLAPSE_DELAY);
 }
 
-// `tab` is the tab bar entry to highlight; the tab bar only shows on the two top-level pages.
+// The tab bar has two sets of pages: Home and Favourites before an event is picked,
+// Watch list and All rounds during one.
+const EVENT_TABS = ['dashboard', 'rounds'];
+const HOME_TABS = ['setup', 'favourites'];
+
+// `tab` is the tab bar entry to highlight; the tab bar only shows on the top-level pages.
 function showView(view, tab = null) {
+  const tabs = state ? EVENT_TABS : HOME_TABS;
+  elements.viewTabButtons.forEach((button) => { button.hidden = !tabs.includes(button.dataset.viewTab); });
   elements.setup.hidden = view !== 'setup';
   elements.dashboard.hidden = view !== 'dashboard';
   elements.resultsView.hidden = view !== 'results';
   elements.roundsView.hidden = view !== 'rounds';
+  elements.favouritesView.hidden = view !== 'favourites';
   elements.viewTabs.hidden = !tab;
   elements.addButton.hidden = view !== 'dashboard';
   if (view === 'dashboard') scheduleFabCollapse();
@@ -748,6 +811,7 @@ function renderAll() {
   elements.showResults.hidden = !(hasPeople && (state?.resultsAvailable || hasAnyResults()));
   if (!elements.resultsView.hidden) renderResultsView();
   if (!elements.roundsView.hidden) renderRoundsView();
+  if (!elements.favouritesView.hidden) renderFavourites();
 }
 
 function formatTime(value) {
@@ -803,21 +867,30 @@ function renderRosterStatus() {
   const roster = state?.roster;
   elements.rosterButton.disabled = rosterLoading;
   elements.rosterButton.classList.toggle('is-loading', rosterLoading);
-  elements.rosterButtonLabel.textContent = rosterLoading ? 'Loading competitors…' : roster ? 'Reload list' : 'Load competitor list';
+  elements.rosterButtonLabel.textContent = rosterLoading ? 'Loading…' : roster ? 'Reload' : 'Load competitor list';
   elements.nameSearch.hidden = !roster;
   let copy;
   if (rosterLoading) copy = 'Loading the name and bib of everyone competing from scoring.dance…';
   else if (roster) {
     const count = roster.people.length;
-    copy = `${count} competitor${count === 1 ? '' : 's'}, list loaded ${formatTime(roster.fetchedAt)}.`;
+    copy = `${count} competitor${count === 1 ? '' : 's'} · loaded ${formatTime(roster.fetchedAt)}`;
     if (roster.partial) copy += ` No start lists are public yet, so only the first ${ROSTER_SEARCH_LIMIT} registered people are included.`;
-  } else copy = 'To search by name, first load the names and bibs of everyone competing at this event from scoring.dance.';
+  } else copy = 'Load everyone\'s name and bib from scoring.dance to search by name.';
   elements.rosterCopy.textContent = rosterError ? `${rosterError} ${roster ? 'The list loaded earlier is still used.' : ''}`.trim() : copy;
   elements.rosterCopy.classList.toggle('is-error', Boolean(rosterError));
+  renderFavouritesBanner();
 }
 
-async function loadRoster() {
-  if (rosterLoading || !state) return;
+// The add dialog and bulk add share one request; a second caller waits for the first.
+let rosterRequest = null;
+
+function loadRoster() {
+  if (!state) return Promise.resolve();
+  if (!rosterRequest) rosterRequest = fetchAndStoreRoster().finally(() => { rosterRequest = null; });
+  return rosterRequest;
+}
+
+async function fetchAndStoreRoster() {
   const current = state;
   rosterLoading = true;
   rosterError = '';
@@ -835,6 +908,7 @@ async function loadRoster() {
       renderRosterStatus();
       renderNameSuggestions();
       if (state.roster && elements.addDialog.open && addTab === 'name') elements.nameQuery.focus();
+      if (elements.bulkDialog.open) renderBulkDialog();
     }
   }
 }
@@ -965,7 +1039,7 @@ function startEvent(eventId, eventTitle) {
 }
 
 function openSetup() {
-  showView('setup');
+  showView('setup', 'setup');
   loadLiveEvents();
 }
 
@@ -1020,6 +1094,7 @@ elements.results.addEventListener('click', (event) => {
   const query = removeButton.dataset.removeQuery;
   const name = (state?.results || []).find((result) => result.query === query)?.name || query;
   pendingRemoval = query;
+  pendingSignOut = false;
   elements.confirmTitle.textContent = `Remove ${name}?`;
   elements.confirmCopy.textContent = 'This removes the person and their cached results from the watch list.';
   elements.confirmAction.textContent = 'Remove person';
@@ -1052,6 +1127,7 @@ elements.nameForm.addEventListener('submit', (event) => {
 });
 elements.resetButtons.forEach((button) => button.addEventListener('click', () => {
   pendingRemoval = null;
+  pendingSignOut = false;
   elements.confirmTitle.textContent = 'Reset this event?';
   elements.confirmCopy.textContent = 'This removes the saved event, watch list, and cached results from this device.';
   elements.confirmAction.textContent = 'Reset everything';
@@ -1060,6 +1136,12 @@ elements.resetButtons.forEach((button) => button.addEventListener('click', () =>
 elements.closeConfirmDialog.addEventListener('click', () => elements.confirmDialog.close());
 elements.confirmForm.addEventListener('submit', (event) => {
   if (event.submitter?.value !== 'confirm') return;
+  if (pendingSignOut) {
+    pendingSignOut = false;
+    elements.confirmDialog.close();
+    signOutOfSwingPoints();
+    return;
+  }
   if (pendingRemoval) {
     const query = pendingRemoval;
     state.watchList = state.watchList.filter((item) => item !== query);
@@ -1394,11 +1476,16 @@ function route() {
   const [page, query = ''] = location.hash.slice(1).split('?');
   const params = new URLSearchParams(query);
   if (!state) {
-    if (elements.setup.hidden) openSetup();
+    if (page === 'favourites') openFavouritesView();
+    else if (elements.setup.hidden) openSetup();
   }
   else if (page === 'results') openResultsView(params);
   else if (page === 'rounds') openRoundsView(params);
-  else openDashboard();
+  else {
+    // Favourites belong to the home screen; during an event its address opens the watch list.
+    if (page) history.replaceState(null, '', `${location.pathname}${location.search}`);
+    openDashboard();
+  }
 }
 
 function navigate(hash, from) {
@@ -1453,7 +1540,8 @@ elements.roundsContent.addEventListener('click', (event) => {
 elements.viewTabs.addEventListener('click', (event) => {
   const tab = event.target.closest('[data-view-tab]');
   if (!tab || tab.getAttribute('aria-selected') === 'true') return;
-  history.replaceState(null, '', tab.dataset.viewTab === 'rounds' ? '#rounds' : `${location.pathname}${location.search}`);
+  const hashes = { rounds: '#rounds', favourites: '#favourites' };
+  history.replaceState(null, '', hashes[tab.dataset.viewTab] || `${location.pathname}${location.search}`);
   route();
   window.scrollTo(0, 0);
 });
@@ -1481,6 +1569,471 @@ elements.backButton.addEventListener('click', () => goBack());
 elements.roundsBack.addEventListener('click', () => goBack('#rounds'));
 window.addEventListener('popstate', route);
 
+// ---- Favourites: the dancers you follow on SwingPoints ----
+// SwingPoints (the WSDC points app) has no public API. This is the GraphQL API its own app
+// uses; it accepts calls from any website (CORS), so CompTracker talks to it directly.
+const SWINGPOINTS_URL = 'https://swingpoints-prod.herokuapp.com/graphql';
+const SWINGPOINTS_CLIENT_VERSION = '8.2.0';
+const SWINGPOINTS_PAGE_SIZE = 100;
+const FAVOURITES_KEY = 'comptracker-favourites';
+const SWINGPOINTS_LOGIN = `mutation authenticate($serviceName: String!, $params: AuthenticateParamsInput!) {
+  authenticate(serviceName: $serviceName, params: $params) { tokens { accessToken } }
+}`;
+const SWINGPOINTS_FOLLOWED = `query FollowedDancers($first: Int, $after: String) {
+  getUser { followedDancers(first: $first, after: $after) {
+    pageInfo { endCursor hasNextPage }
+    edges { node { fullName wsdcId roles highestDivision { totalPoints division { name } } } }
+  } }
+}`;
+
+// Favourites outlive the event, so they have their own record and a reset keeps them.
+let favourites = readFavourites();
+// The saved login's email: undefined until the vault has been read, null when there is none.
+let savedLoginEmail;
+let loginLookup = null;
+let favouritesSync = null;
+
+function readFavourites() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(FAVOURITES_KEY));
+    return stored && Array.isArray(stored.dancers) ? stored : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function saveFavourites() {
+  try {
+    if (favourites) localStorage.setItem(FAVOURITES_KEY, JSON.stringify(favourites));
+    else localStorage.removeItem(FAVOURITES_KEY);
+  } catch (error) {
+    // The list still shows until the page is closed.
+  }
+}
+
+function sentence(text) {
+  const trimmed = String(text || '').trim();
+  return !trimmed || /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+async function swingPointsRequest(query, variables, token) {
+  const headers = { 'Content-Type': 'application/json', clientVersion: SWINGPOINTS_CLIENT_VERSION };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  let response;
+  try {
+    response = await fetch(SWINGPOINTS_URL, { method: 'POST', headers, body: JSON.stringify({ query, variables }), cache: 'no-store' });
+  } catch (error) {
+    throw new Error('Could not reach SwingPoints. Check your connection and try again.');
+  }
+  let body;
+  try {
+    body = await response.json();
+  } catch (error) {
+    throw new Error(`SwingPoints returned error code ${response.status}.`);
+  }
+  if (body?.errors?.length) {
+    const message = body.errors.map((item) => sentence(item.message)).filter(Boolean).join(' ');
+    throw Object.assign(new Error(message || 'SwingPoints returned an error.'), { fromServer: true });
+  }
+  if (!response.ok) throw new Error(`SwingPoints returned error code ${response.status}.`);
+  return body.data;
+}
+
+const FAVOURITE_ROLES = { leader: 'Leader', follower: 'Follower' };
+
+// Logs in (the password goes to SwingPoints only, over HTTPS) and reads every followed dancer.
+// The access token is kept for this sync only.
+async function fetchFollowedDancers({ email, password }) {
+  let token;
+  try {
+    const data = await swingPointsRequest(SWINGPOINTS_LOGIN, { serviceName: 'password', params: { user: { email }, password } });
+    token = data?.authenticate?.tokens?.accessToken;
+  } catch (error) {
+    // SwingPoints turned the login down, as opposed to the network failing.
+    if (error.fromServer) error.login = true;
+    throw error;
+  }
+  if (!token) throw Object.assign(new Error('SwingPoints did not accept the login.'), { login: true });
+  const dancers = [];
+  let after = null;
+  // A cap on pages, in case the API ever keeps saying there is more.
+  for (let page = 0; page < 50; page += 1) {
+    const data = await swingPointsRequest(SWINGPOINTS_FOLLOWED, { first: SWINGPOINTS_PAGE_SIZE, after }, token);
+    const connection = data?.getUser?.followedDancers;
+    if (!connection) throw new Error('SwingPoints did not return your followed dancers.');
+    (connection.edges || []).forEach(({ node }) => {
+      if (!node?.fullName) return;
+      dancers.push({
+        name: cleanName(node.fullName),
+        wsdcId: node.wsdcId ? String(node.wsdcId) : '',
+        roles: (node.roles || []).map((role) => FAVOURITE_ROLES[String(role).toLowerCase()] || String(role)),
+        division: node.highestDivision?.division?.name || '',
+        points: Number.isFinite(node.highestDivision?.totalPoints) ? node.highestDivision.totalPoints : null,
+      });
+    });
+    if (!connection.pageInfo?.hasNextPage || !connection.pageInfo.endCursor) break;
+    after = connection.pageInfo.endCursor;
+  }
+  return dancers.sort((a, b) => nameCollator.compare(a.name, b.name));
+}
+
+// ---- The SwingPoints login, kept encrypted on this device ----
+// A web page has no keychain of its own. The login is encrypted with AES-GCM under a key the
+// browser generates as non-extractable and keeps in IndexedDB: this page can use the key, but
+// its bytes can never be read out, so the stored data on its own does not reveal the password.
+const VAULT_DB = 'comptracker-vault';
+const VAULT_STORE = 'items';
+const VAULT_KEY_ITEM = 'key';
+const LOGIN_ITEM = 'swingpoints-login';
+
+function canStoreLogin() {
+  return Boolean(window.isSecureContext && window.crypto?.subtle && window.indexedDB);
+}
+
+function vaultTransaction(mode, action) {
+  return new Promise((resolve, reject) => {
+    const open = indexedDB.open(VAULT_DB, 1);
+    open.onupgradeneeded = () => open.result.createObjectStore(VAULT_STORE);
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const transaction = db.transaction(VAULT_STORE, mode);
+      const request = action(transaction.objectStore(VAULT_STORE));
+      transaction.oncomplete = () => {
+        db.close();
+        resolve(request?.result);
+      };
+      transaction.onerror = transaction.onabort = () => {
+        db.close();
+        reject(transaction.error);
+      };
+    };
+  });
+}
+
+async function vaultKey() {
+  const stored = await vaultTransaction('readonly', (store) => store.get(VAULT_KEY_ITEM));
+  if (stored) return stored;
+  const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  await vaultTransaction('readwrite', (store) => store.put(key, VAULT_KEY_ITEM));
+  return key;
+}
+
+async function saveLogin(login) {
+  if (!canStoreLogin()) throw new Error('No secure storage available.');
+  const key = await vaultKey();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(login)));
+  await vaultTransaction('readwrite', (store) => store.put({ iv, data }, LOGIN_ITEM));
+}
+
+async function readLogin() {
+  if (!canStoreLogin()) return null;
+  const [key, stored] = await Promise.all([
+    vaultTransaction('readonly', (store) => store.get(VAULT_KEY_ITEM)),
+    vaultTransaction('readonly', (store) => store.get(LOGIN_ITEM)),
+  ]);
+  if (!key || !stored) return null;
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: stored.iv }, key, stored.data);
+  const login = JSON.parse(new TextDecoder().decode(plain));
+  return login?.email && typeof login.password === 'string' ? login : null;
+}
+
+// Drops the key as well, so nothing encrypted under it can be read again.
+async function forgetLogin() {
+  if (!canStoreLogin()) return;
+  await vaultTransaction('readwrite', (store) => {
+    store.delete(LOGIN_ITEM);
+    store.delete(VAULT_KEY_ITEM);
+  });
+}
+
+function lookUpSavedLogin() {
+  if (savedLoginEmail !== undefined || loginLookup) return;
+  loginLookup = readLogin().catch(() => null).then((login) => {
+    loginLookup = null;
+    if (savedLoginEmail === undefined) savedLoginEmail = login?.email || null;
+    if (!elements.favouritesView.hidden) renderFavourites();
+  });
+}
+
+// ---- Favourites page ----
+
+function openFavouritesView() {
+  showView('favourites', 'favourites');
+  if (!favouritesSync) setStatus('', 'info', elements.favouritesStatus);
+  lookUpSavedLogin();
+  renderFavourites();
+}
+
+// Names compared as their words in any order, without accents or case.
+function nameWords(name) {
+  return searchKey(name).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+}
+
+function nameKey(name) {
+  return nameWords(name).sort().join(' ');
+}
+
+function renderFavourites() {
+  const loginKnown = savedLoginEmail !== undefined;
+  const hasLogin = Boolean(savedLoginEmail);
+  const dancers = favourites?.dancers || [];
+  elements.swingPointsForm.hidden = !loginKnown || hasLogin;
+  elements.favouritesRefresh.hidden = !hasLogin;
+  elements.favouritesAccount.hidden = !hasLogin && !favourites;
+  elements.swingPointsSignOut.textContent = hasLogin ? 'Log out' : 'Remove';
+  elements.swingPointsStorageNote.textContent = canStoreLogin()
+    ? 'Your login is stored encrypted on this device only and is sent to nobody but SwingPoints.'
+    : 'This browser cannot store the login securely here, so it is used for this sync only and not kept.';
+  const note = [];
+  if (favourites) note.push(`${dancers.length} dancer${dancers.length === 1 ? '' : 's'}`, `synced ${formatTime(favourites.syncedAt)}`);
+  if (hasLogin) note.push(`signed in as ${savedLoginEmail}`);
+  elements.favouritesNote.textContent = note.join(' · ');
+  renderFavouritesBusy();
+  if (!favourites) {
+    elements.favouritesList.innerHTML = hasLogin ? '<div class="empty-state">Tap ↻ to sync your favourites.</div>' : '';
+    return;
+  }
+  if (!dancers.length) {
+    elements.favouritesList.innerHTML = '<div class="empty-state">You do not follow anyone on SwingPoints yet.</div>';
+    return;
+  }
+  elements.favouritesList.innerHTML = `<ul class="favourites">${dancers.map(renderFavourite).join('')}</ul>`;
+}
+
+function renderFavourite(dancer) {
+  const roles = dancer.roles.length === 2 ? `${dancer.roles[0]} & ${dancer.roles[1].toLowerCase()}` : dancer.roles.join(', ');
+  const meta = [dancer.wsdcId && `WSDC #${dancer.wsdcId}`, roles].filter(Boolean).map(escapeHtml).join(' · ');
+  const points = dancer.points === null ? '' : ` <small>${escapeHtml(dancer.points)} pt${dancer.points === 1 ? '' : 's'}</small>`;
+  const division = dancer.division ? `<span class="division-chip">${escapeHtml(dancer.division)}${points}</span>` : '';
+  return `<li class="favourite"><span class="favourite-main"><span class="favourite-name">${escapeHtml(dancer.name)}</span>${meta ? `<span class="favourite-meta">${meta}</span>` : ''}</span><span class="favourite-tags">${division}</span></li>`;
+}
+
+function renderFavouritesBusy() {
+  const busy = Boolean(favouritesSync);
+  elements.favouritesRefresh.disabled = busy;
+  elements.favouritesRefresh.classList.toggle('is-loading', busy);
+  elements.swingPointsSubmit.disabled = busy;
+  elements.swingPointsSubmit.classList.toggle('is-loading', busy);
+  elements.swingPointsSubmitLabel.textContent = busy ? 'Signing in…' : 'Sign in and sync';
+}
+
+// One sync at a time; `newLogin` comes from the sign-in form, otherwise the saved login is used.
+function syncFavourites(newLogin = null) {
+  if (favouritesSync) return favouritesSync;
+  favouritesSync = runFavouritesSync(newLogin).finally(() => {
+    favouritesSync = null;
+    renderFavouritesBusy();
+  });
+  renderFavouritesBusy();
+  return favouritesSync;
+}
+
+function refreshFavourites() {
+  return savedLoginEmail ? syncFavourites() : Promise.resolve();
+}
+
+async function runFavouritesSync(newLogin) {
+  const status = (message, kind = 'info') => setStatus(message, kind, elements.favouritesStatus);
+  status(newLogin ? 'Signing in to SwingPoints…' : 'Syncing favourites from SwingPoints…');
+  const login = newLogin || await readLogin().catch(() => null);
+  if (!login) {
+    savedLoginEmail = null;
+    renderFavourites();
+    status('Sign in to SwingPoints to sync your favourites.');
+    return;
+  }
+  let dancers;
+  try {
+    dancers = await fetchFollowedDancers(login);
+  } catch (error) {
+    if (error.login && !newLogin) {
+      // The password was changed on SwingPoints, or the account is gone: ask for it again.
+      await forgetLogin().catch(() => {});
+      savedLoginEmail = null;
+      elements.swingPointsEmail.value = login.email;
+      renderFavourites();
+      status(`SwingPoints did not accept the saved login: ${error.message} Please sign in again.`, 'error');
+      return;
+    }
+    status(`${error.login ? 'Could not sign in to SwingPoints.' : 'Could not sync favourites.'} ${error.message}`, 'error');
+    return;
+  }
+  let storageNote = '';
+  if (newLogin) {
+    try {
+      await saveLogin(newLogin);
+      savedLoginEmail = newLogin.email;
+    } catch (error) {
+      savedLoginEmail = null;
+      storageNote = ' This browser could not store the login, so you will need to sign in again to sync next time.';
+    }
+    elements.swingPointsPassword.value = '';
+  }
+  favourites = { dancers, syncedAt: new Date().toISOString() };
+  saveFavourites();
+  renderFavourites();
+  status(`Synced ${dancers.length} favourite${dancers.length === 1 ? '' : 's'} from SwingPoints.${storageNote}`);
+}
+
+async function signOutOfSwingPoints() {
+  await forgetLogin().catch(() => {});
+  savedLoginEmail = null;
+  favourites = null;
+  saveFavourites();
+  elements.swingPointsForm.reset();
+  renderFavourites();
+  setStatus('Logged out. Your SwingPoints login and favourites were removed from this device.', 'info', elements.favouritesStatus);
+}
+
+elements.swingPointsForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const email = elements.swingPointsEmail.value.trim();
+  const password = elements.swingPointsPassword.value;
+  if (email && password) syncFavourites({ email, password });
+});
+elements.favouritesRefresh.addEventListener('click', refreshFavourites);
+elements.swingPointsSignOut.addEventListener('click', () => {
+  pendingRemoval = null;
+  pendingSignOut = true;
+  const hasLogin = Boolean(savedLoginEmail);
+  elements.confirmTitle.textContent = hasLogin ? 'Log out of SwingPoints?' : 'Remove favourites?';
+  elements.confirmCopy.textContent = hasLogin
+    ? 'This deletes your saved SwingPoints login, its encryption key and your favourites from this device. Your watch list stays as it is.'
+    : 'This removes the synced favourites from this device. Your watch list stays as it is.';
+  elements.confirmAction.textContent = hasLogin ? 'Log out' : 'Remove favourites';
+  elements.confirmDialog.showModal();
+});
+
+// Five quick taps on the title turn bulk add on or off for this device.
+let titleTaps = { count: 0, last: 0 };
+elements.favouritesTitle.addEventListener('click', () => {
+  const now = Date.now();
+  titleTaps = { count: now - titleTaps.last < 700 ? titleTaps.count + 1 : 1, last: now };
+  if (titleTaps.count < 5) return;
+  titleTaps.count = 0;
+  const enabled = !hasFeature('bulk-add');
+  setFeature('bulk-add', enabled);
+  renderFavourites();
+  setStatus(`Bulk add turned ${enabled ? 'on' : 'off'} for this device.`, 'info', elements.favouritesStatus);
+});
+
+// ---- Bulk add: favourites competing at the current event, added to the watch list at once ----
+
+function renderBulkBusy() {
+  elements.bulkReload.disabled = rosterLoading;
+  elements.bulkReload.classList.toggle('is-loading', rosterLoading);
+  elements.bulkReloadLabel.textContent = rosterLoading ? 'Loading…' : 'Reload competitor list';
+}
+
+// The same words in any order match. Failing that, one name may have extra words (a middle
+// name, a second surname) as long as it holds every word of the other and that has two or more.
+function matchFavourites(dancers, people) {
+  const roster = people.map((person) => ({ person, words: nameWords(person.name) }));
+  const byKey = new Map();
+  roster.forEach((entry) => {
+    const key = [...entry.words].sort().join(' ');
+    byKey.set(key, [...(byKey.get(key) || []), entry.person]);
+  });
+  const contains = (outer, inner) => inner.every((word) => outer.includes(word));
+  return dancers.map((dancer) => {
+    const words = nameWords(dancer.name);
+    const exact = byKey.get([...words].sort().join(' ')) || [];
+    if (exact.length || words.length < 2) return { dancer, people: exact };
+    const partial = roster.filter((entry) => entry.words.length >= 2 && (contains(entry.words, words) || contains(words, entry.words)));
+    return { dancer, people: partial.map((entry) => entry.person) };
+  });
+}
+
+// Favourites who compete at the event and none of whose matching bibs is watched yet.
+function unwatchedFavourites() {
+  if (!state?.roster || !favourites?.dancers?.length) return [];
+  return matchFavourites(favourites.dancers, state.roster.people)
+    .filter((match) => match.people.length && !match.people.some((person) => state.watchList.includes(person.bib)));
+}
+
+// Banner in Add person → By name, once the competitor list is loaded.
+function renderFavouritesBanner() {
+  const count = hasFeature('bulk-add') ? unwatchedFavourites().length : 0;
+  elements.favouritesBanner.hidden = count === 0;
+  if (count) elements.favouritesBannerCopy.textContent = count === 1
+    ? '1 favourite here isn\'t on your watch list yet.'
+    : `${count} favourites here aren't on your watch list yet.`;
+}
+
+function renderBulkDialog() {
+  renderBulkBusy();
+  const roster = state?.roster;
+  if (!roster || !favourites) {
+    elements.bulkCopy.textContent = rosterError || 'The competitor list is not loaded.';
+    elements.bulkList.innerHTML = '';
+    updateBulkSubmit();
+    return;
+  }
+  const matches = matchFavourites(favourites.dancers, roster.people);
+  const found = matches.filter((match) => match.people.length);
+  const missing = matches.filter((match) => !match.people.length);
+  const seen = new Set();
+  const rows = found.flatMap(({ dancer, people }) => people.filter((person) => !seen.has(person.bib) && seen.add(person.bib)).map((person) => {
+    const onList = state.watchList.includes(person.bib);
+    const ambiguous = people.length > 1;
+    let hint = '';
+    if (ambiguous) hint = `Several competitors match ${dancer.name}`;
+    else if (nameKey(person.name) !== nameKey(dancer.name)) hint = `On SwingPoints: ${dancer.name}`;
+    return `<label class="bulk-item${onList ? ' is-tracked' : ''}"><input type="checkbox" name="bib" value="${escapeHtml(person.bib)}"${onList || !ambiguous ? ' checked' : ''}${onList ? ' disabled' : ''} /><span class="bulk-name">${escapeHtml(person.name)}${hint ? `<small>${escapeHtml(hint)}</small>` : ''}</span>${onList ? '<span class="suggestion-tag">On list</span>' : ''}<span class="suggestion-bib">#${escapeHtml(person.bib)}</span></label>`;
+  }));
+  const total = favourites.dancers.length;
+  let copy = `${found.length} of your ${total} favourite${total === 1 ? '' : 's'} ${found.length === 1 ? 'competes' : 'compete'} at ${state.eventTitle || `event #${state.eventId}`}. Competitor list loaded ${formatTime(roster.fetchedAt)}.`;
+  if (roster.partial) copy += ` No start lists are public yet, so only the first ${ROSTER_SEARCH_LIMIT} registered people were checked.`;
+  if (rosterError) copy = `${rosterError} ${copy}`;
+  elements.bulkCopy.textContent = copy;
+  const missingList = missing.length
+    ? `<details class="bulk-missing"><summary>${missing.length} not in this event</summary><p>${missing.map((match) => escapeHtml(match.dancer.name)).join(', ')}</p></details>`
+    : '';
+  elements.bulkList.innerHTML = (rows.length ? `<div class="bulk-items">${rows.join('')}</div>` : '<p class="suggestions-empty">None of your favourites are on this event\'s competitor list yet.</p>') + missingList;
+  updateBulkSubmit();
+}
+
+function selectedBulkBibs() {
+  return [...elements.bulkList.querySelectorAll('input[name="bib"]:checked:not(:disabled)')].map((input) => input.value);
+}
+
+function updateBulkSubmit() {
+  const count = selectedBulkBibs().length;
+  elements.bulkSubmit.disabled = count === 0;
+  elements.bulkSubmit.textContent = count ? `Add ${count} ${count === 1 ? 'person' : 'people'}` : 'Add people';
+}
+
+function addManyToWatchList(bibs) {
+  const added = [...new Set(bibs)].filter((bib) => bib && !state.watchList.includes(bib));
+  if (!added.length) return;
+  state.watchList.push(...added);
+  saveState();
+  history.replaceState(null, '', `${location.pathname}${location.search}`);
+  route();
+  window.scrollTo(0, 0);
+  refreshResults();
+}
+
+elements.favouritesBannerButton.addEventListener('click', () => {
+  elements.addDialog.close();
+  renderBulkDialog();
+  elements.bulkDialog.showModal();
+});
+elements.closeBulkDialog.addEventListener('click', () => elements.bulkDialog.close());
+elements.bulkList.addEventListener('change', updateBulkSubmit);
+elements.bulkReload.addEventListener('click', () => {
+  loadRoster();
+  renderBulkBusy();
+});
+elements.bulkForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const bibs = selectedBulkBibs();
+  elements.bulkDialog.close();
+  addManyToWatchList(bibs);
+});
+
 // ---- Pull to refresh ----
 // A browser's own pull-to-refresh reloads the page, which only shows the cached results.
 // styles.css turns it off (overscroll-behavior) and this gesture runs the app's refresh instead.
@@ -1493,6 +2046,7 @@ const APP_RELOAD_KEY = 'comptracker-app-reload';
 // What "refresh" means on the page that is showing; an update already running is reused.
 function refreshCurrentView() {
   if (!elements.setup.hidden) return loadLiveEvents();
+  if (!elements.favouritesView.hidden) return refreshFavourites();
   if (!state) return Promise.resolve();
   if (!elements.roundsView.hidden) return refreshRounds();
   return refreshInFlight || refreshResults();
@@ -1606,7 +2160,7 @@ function setupServiceWorker() {
   // The very first install also fires it, but there is nothing to reload then.
   let hasController = Boolean(navigator.serviceWorker.controller);
   let reloadPending = false;
-  const isBusy = () => Boolean(refreshInFlight || document.querySelector('dialog[open]'));
+  const isBusy = () => Boolean(refreshInFlight || favouritesSync || document.querySelector('dialog[open]'));
   const reloadWhenIdle = () => {
     if (!reloadPending) return;
     // Don't yank the page away mid-refresh or while a dialog is being filled in;
@@ -1637,6 +2191,7 @@ function setupServiceWorker() {
 }
 
 setupServiceWorker();
+applyFeatureParams();
 route();
 setupPullToRefresh();
 // The setup page already loads the live events on its own.
