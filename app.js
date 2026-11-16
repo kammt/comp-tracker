@@ -60,6 +60,9 @@ const elements = {
   roundsNote: document.querySelector('#rounds-note'),
   roundsContent: document.querySelector('#rounds-content'),
   pullIndicator: document.querySelector('#pull-indicator'),
+  listToolbar: document.querySelector('#list-toolbar'),
+  sortSelect: document.querySelector('#sort-select'),
+  collapseAll: document.querySelector('#collapse-all-button'),
 };
 
 let state = readState();
@@ -80,6 +83,32 @@ function readState() {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+// Display preferences outlive the event, so a reset keeps them.
+const PREFS_KEY = 'comptracker-prefs';
+const SORT_ORDERS = ['added', 'recent', 'name', 'changed'];
+let prefs = readPrefs();
+
+function readPrefs() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(PREFS_KEY));
+    return stored && typeof stored === 'object' ? stored : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function savePrefs() {
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  } catch (error) {
+    // The order still applies until the page is closed.
+  }
+}
+
+function sortOrder() {
+  return SORT_ORDERS.includes(prefs.sort) ? prefs.sort : 'added';
 }
 
 // `tab` is the tab bar entry to highlight; the tab bar only shows on the two top-level pages.
@@ -447,6 +476,7 @@ async function runRefresh() {
     // The event was reset (or replaced) while we were waiting; drop these results.
     if (state !== current) return;
     const previousResults = current.results || [];
+    const fetchedAt = new Date().toISOString();
     let changedCount = 0;
     const results = settled.map((item, index) => {
       const query = watchList[index];
@@ -455,7 +485,8 @@ async function runRefresh() {
         const participant = attachResults(item.value, resultPages, oldResult);
         const changed = Boolean(oldResult && !oldResult.neverLoaded && !sameParticipant(oldResult, participant));
         if (changed) changedCount += 1;
-        return { ...participant, changed };
+        // When this person's info last changed, for the "Most recent changes" order.
+        return { ...participant, changed, changedAt: changed ? fetchedAt : oldResult?.changedAt || null };
       }
       return oldResult
         ? { ...oldResult, changed: false, error: item.reason.message }
@@ -468,7 +499,7 @@ async function runRefresh() {
       current.rounds = eventRounds.map(slimRound);
       current.roundsFetchedAt = new Date().toISOString();
     }
-    current.fetchedAt = new Date().toISOString();
+    current.fetchedAt = fetchedAt;
     saveState();
     renderAll();
     const failed = settled.filter((item) => item.status === 'rejected').length;
@@ -496,17 +527,93 @@ function escapeHtml(value) {
   return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
 }
 
+const nameCollator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+
+// The watch list order: `state.watchList` keeps people in the order they were added.
+function sortedResults(results) {
+  const position = new Map((state?.watchList || []).map((query, index) => [query, index]));
+  const byAdded = (a, b) => (position.get(a.query) ?? Infinity) - (position.get(b.query) ?? Infinity);
+  const sorted = [...results];
+  switch (sortOrder()) {
+    case 'recent': return sorted.sort((a, b) => byAdded(b, a));
+    case 'name': return sorted.sort((a, b) => nameCollator.compare(a.name, b.name) || byAdded(a, b));
+    // People whose info never changed follow, newest addition first.
+    case 'changed': return sorted.sort((a, b) => (b.changedAt || '').localeCompare(a.changedAt || '') || byAdded(b, a));
+    default: return sorted.sort(byAdded);
+  }
+}
+
+function isCollapsed(query) {
+  return (state?.collapsed || []).includes(query);
+}
+
 function renderResults() {
   const results = state?.results || [];
+  elements.listToolbar.hidden = results.length < 2;
+  elements.sortSelect.value = sortOrder();
+  updateCollapseAllButton();
   if (!results.length) {
     elements.results.innerHTML = '<div class="empty-state">No results yet.</div>';
     return;
   }
-  elements.results.innerHTML = results.map((participant) => `
-    <article class="participant${participant.changed ? ' is-changed' : ''}">
-      <header class="participant-header"><div><h2 class="participant-name">${escapeHtml(participant.name)}</h2><span class="bib">Search: ${escapeHtml(participant.query)}</span></div><div class="participant-tools">${participant.changed ? '<strong class="change-label">CHANGED</strong>' : ''}<button class="remove-button" type="button" data-remove-query="${escapeHtml(participant.query)}" aria-label="Remove ${escapeHtml(participant.name)}" title="Remove person">×</button></div></header>
-      ${renderParticipantBody(participant)}
-    </article>`).join('');
+  const showChangeTime = sortOrder() === 'changed';
+  elements.results.innerHTML = sortedResults(results).map((participant, index) => {
+    const collapsed = isCollapsed(participant.query);
+    const bodyId = `person-body-${index}`;
+    const changedTime = showChangeTime && participant.changedAt ? ` · changed ${escapeHtml(formatTime(participant.changedAt))}` : '';
+    return `
+    <article class="participant${participant.changed ? ' is-changed' : ''}${collapsed ? ' is-collapsed' : ''}" data-person="${escapeHtml(participant.query)}">
+      <header class="participant-header"><div class="participant-heading"><h2 class="participant-name"><button class="participant-toggle" type="button" aria-expanded="${!collapsed}" aria-controls="${bodyId}">${escapeHtml(participant.name)}</button></h2><span class="bib">Search: ${escapeHtml(participant.query)}${changedTime}</span></div><div class="participant-tools">${participant.changed ? '<strong class="change-label">CHANGED</strong>' : ''}<button class="remove-button" type="button" data-remove-query="${escapeHtml(participant.query)}" aria-label="Remove ${escapeHtml(participant.name)}" title="Remove person">×</button><span class="participant-chevron" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></div></header>
+      <div class="participant-summary collapsible"${collapsed ? '' : ' inert'}><div>${renderParticipantSummary(participant)}</div></div>
+      <div id="${bodyId}" class="participant-body collapsible"${collapsed ? ' inert' : ''}><div>${renderParticipantBody(participant)}</div></div>
+    </article>`;
+  }).join('');
+}
+
+// One line per competition for a collapsed card: the latest round they danced and how it went.
+function renderParticipantSummary(participant) {
+  const competitions = participant.competitions || [];
+  if (!competitions.length) {
+    return `<p class="summary-note${participant.error ? ' is-error' : ''}">${escapeHtml(participant.error || 'No competition details found.')}</p>`;
+  }
+  return `<ul class="summary-list">${competitions.map((competition) => {
+    const latest = competition.rounds.filter((round) => round.status === 'in').at(-1);
+    let progress = '<span class="summary-round out">Not in a round</span>';
+    if (latest) {
+      const detail = renderRoundResultChip(latest.result) || (latest.heat ? `<span class="heat">${escapeHtml(latest.heat)}</span>` : '');
+      progress = `<span class="summary-round">${escapeHtml(latest.name)}</span>${detail}`;
+    }
+    return `<li class="summary-competition"><span class="summary-title">${escapeHtml(competition.title)}</span>${progress}</li>`;
+  }).join('')}</ul>`;
+}
+
+function setCardCollapsed(card, collapsed) {
+  card.classList.toggle('is-collapsed', collapsed);
+  card.querySelector('.participant-toggle').setAttribute('aria-expanded', String(!collapsed));
+  // Keeps the hidden part out of the tab order and away from screen readers.
+  card.querySelector('.participant-body').inert = collapsed;
+  card.querySelector('.participant-summary').inert = !collapsed;
+}
+
+// Updates the cards in place (instead of re-rendering) so they animate open and shut.
+function setCollapsed(queries) {
+  state.collapsed = [...new Set(queries)].filter((query) => state.watchList.includes(query));
+  saveState();
+  elements.results.querySelectorAll('[data-person]').forEach((card) => setCardCollapsed(card, isCollapsed(card.dataset.person)));
+  updateCollapseAllButton();
+}
+
+function toggleParticipant(query) {
+  setCollapsed(isCollapsed(query) ? state.collapsed.filter((item) => item !== query) : [...(state.collapsed || []), query]);
+}
+
+function allCollapsed() {
+  const results = state?.results || [];
+  return results.length > 0 && results.every((participant) => isCollapsed(participant.query));
+}
+
+function updateCollapseAllButton() {
+  elements.collapseAll.textContent = allCollapsed() ? 'Expand all' : 'Collapse all';
 }
 
 function roundInfo(roundId) {
@@ -565,7 +672,7 @@ function renderPlacement(value) {
 }
 
 function renderResultsView() {
-  const participants = state?.results || [];
+  const participants = sortedResults(state?.results || []);
   const blocks = participants.map(renderParticipantResults).join('');
   const empty = (state?.watchList || []).length
     ? 'No results yet. Refresh the watch list once results are published.'
@@ -894,7 +1001,12 @@ elements.addButton.addEventListener('click', openAddDialog);
 elements.closeAddDialog.addEventListener('click', () => elements.addDialog.close());
 elements.results.addEventListener('click', (event) => {
   const removeButton = event.target.closest('[data-remove-query]');
-  if (!removeButton) return;
+  if (!removeButton) {
+    // The whole header opens and closes the card; its name button is the keyboard control.
+    const header = event.target.closest('.participant-header');
+    if (header) toggleParticipant(header.closest('[data-person]').dataset.person);
+    return;
+  }
   const query = removeButton.dataset.removeQuery;
   const name = (state?.results || []).find((result) => result.query === query)?.name || query;
   pendingRemoval = query;
@@ -902,6 +1014,14 @@ elements.results.addEventListener('click', (event) => {
   elements.confirmCopy.textContent = 'This removes the person and their cached results from the watch list.';
   elements.confirmAction.textContent = 'Remove person';
   elements.confirmDialog.showModal();
+});
+elements.sortSelect.addEventListener('change', () => {
+  prefs.sort = elements.sortSelect.value;
+  savePrefs();
+  renderAll();
+});
+elements.collapseAll.addEventListener('click', () => {
+  setCollapsed(allCollapsed() ? [] : (state.results || []).map((participant) => participant.query));
 });
 elements.addForm.addEventListener('submit', (event) => {
   event.preventDefault();
@@ -934,6 +1054,7 @@ elements.confirmForm.addEventListener('submit', (event) => {
     const query = pendingRemoval;
     state.watchList = state.watchList.filter((item) => item !== query);
     state.results = (state.results || []).filter((result) => result.query !== query);
+    state.collapsed = (state.collapsed || []).filter((item) => item !== query);
     saveState();
     renderAll();
     setStatus(`${query} removed from the watch list.`);

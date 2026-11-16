@@ -57,11 +57,42 @@ input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 
 .participant { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
 .participant.is-changed { border-color: var(--coral); box-shadow: 0 0 0 3px rgba(218,91,77,.12), var(--shadow); }
 .participant-header { display: flex; justify-content: space-between; gap: 12px; padding: 18px 18px 14px; border-bottom: 1px solid var(--line); }
+.participant[data-person] .participant-header { border-bottom: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.participant-heading { min-width: 0; }
 .participant-tools { display: flex; align-items: flex-start; gap: 10px; }
+/* Collapsible cards: tapping the header swaps the full rounds for a one-line-per-competition summary. */
+.participant-toggle { padding: 0; color: inherit; background: none; border: 0; border-radius: 4px; font: inherit; text-align: left; overflow-wrap: anywhere; }
+.participant-toggle:focus-visible { outline: 2px solid var(--mint-strong); outline-offset: 3px; }
+.participant-chevron { display: grid; place-items: center; width: 30px; height: 30px; color: var(--muted); }
+.participant-chevron svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transform: rotate(180deg); transition: transform .25s ease; }
+.participant.is-collapsed .participant-chevron svg { transform: none; }
+.participant.is-collapsed .remove-button { display: none; }
+.collapsible { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .25s ease; }
+.collapsible > div { min-height: 0; overflow: hidden; }
+.participant-body > div { border-top: 1px solid var(--line); }
+.participant.is-collapsed .participant-body, .participant-summary { grid-template-rows: 0fr; }
+.participant.is-collapsed .participant-summary { grid-template-rows: 1fr; }
+.summary-list { display: grid; gap: 6px; margin: 0; padding: 0 18px 16px; list-style: none; }
+.summary-competition { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: .88rem; }
+.summary-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.summary-round { flex: none; color: var(--mint-strong); font-size: .78rem; font-weight: 700; text-transform: capitalize; }
+.summary-round.out { color: var(--muted); font-weight: 500; text-transform: none; }
+.summary-competition .round-result, .summary-competition .heat { flex: none; margin: 0; white-space: nowrap; }
+.summary-note { margin: 0; padding: 0 18px 16px; color: var(--muted); font-size: .88rem; }
+.summary-note.is-error { color: #8d322a; }
+/* Sort menu and collapse-all above the watch list. */
+.list-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.sort-control { display: inline-flex; align-items: center; gap: 8px; min-width: 0; margin: 0; }
+.sort-label { color: var(--muted); font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+/* 16px text stops iOS from zooming in when the menu opens. */
+.sort-control select { min-width: 0; margin: 0; max-width: 100%; padding: 7px 34px 7px 12px; color: var(--ink); background: var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2365736e' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center / 16px; border: 1px solid var(--line); border-radius: 999px; font: inherit; font-size: 16px; font-weight: 600; -webkit-appearance: none; appearance: none; }
+.sort-control select:focus-visible, .toolbar-button:focus-visible { outline: 2px solid var(--mint-strong); outline-offset: 2px; }
+.toolbar-button { flex: none; padding: 7px 4px; line-height: 1.5; color: var(--mint-strong); background: transparent; border: 0; font-size: .9rem; font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .collapsible, .participant-chevron svg { transition: none; } }
 .participant-name { font-size: 1.25rem; }
 .bib { color: var(--muted); font-size: .82rem; }
 .change-label { color: var(--coral); font-size: .7rem; letter-spacing: .08em; }
-.remove-button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 50%; font-size: 1.25rem; line-height: 1; }
+.remove-button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; color: #a83d34; background: #fff0ee; border: 1px solid #f2c1ba; border-radius: 50%; font-size: 1.25rem; line-height: 1; }
 .remove-button:hover { color: var(--coral); border-color: var(--coral); }
 .participant-error { color: #8d322a; background: #fff8f6; margin: 0; padding: 16px 18px; font-size: .9rem; }
 .competition { padding: 18px; border-bottom: 1px solid #edf0ec; }
@@ -247,13 +278,16 @@ html, body { overscroll-behavior-y: contain; }
 	.pull-indicator { box-shadow: 0 6px 18px rgba(0,0,0,.6); }
 	.button-primary, .live-event-arrow, .button-results, .round-result.final, .placement-hero, .suggestion-name mark { color: var(--on-accent); }
 	.button-secondary { background: transparent; }
-	.button-danger { color: var(--danger-ink); background: var(--danger-bg); border-color: var(--danger-line); }
+	.button-danger, .remove-button { color: var(--danger-ink); background: var(--danger-bg); border-color: var(--danger-line); }
+	.remove-button:hover { color: var(--coral); border-color: var(--coral); }
 	.status-banner { background: var(--surface); }
 	.status-banner[data-kind="error"], .participant-error { color: var(--danger-ink); background: var(--danger-bg); }
 	.roster-status .dialog-copy.is-error { color: var(--danger-ink); }
 	.empty-state, .live-events-note { border-color: var(--dash); }
 	.participant.is-changed { box-shadow: 0 0 0 3px rgba(255,125,110,.18); }
 	.competition { border-color: var(--line-soft); }
+	.summary-note.is-error { color: var(--danger-ink); }
+	.sort-control select { background-color: var(--panel); color-scheme: dark; }
 	.round, .round-results, .tabs, .suggestion { background: var(--surface); }
 	.heat { color: var(--ink); background: var(--chip); }
 	.round-result.callback { background: rgba(111,224,169,.16); }
