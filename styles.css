@@ -177,8 +177,10 @@ button.round-row:active { background: var(--row-active); }
 .round-row:focus-visible { outline: 2px solid var(--mint-strong); outline-offset: -2px; border-radius: 8px; }
 .round-row-name { flex: 0 1 auto; min-width: 3.4em; overflow: hidden; font-weight: 700; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
 .round-row-detail { flex: 1; min-width: 0; overflow: hidden; color: var(--muted); font-size: .8rem; text-overflow: ellipsis; white-space: nowrap; }
-.round-row.is-out, .round-row.is-pending { color: var(--muted); }
-.round-row.is-out .round-row-name, .round-row.is-pending .round-row-name { font-weight: 500; }
+/* Not out yet: the bold name in grey, since the round is still to come. */
+.round-row.is-pending { color: var(--muted); }
+/* Out: the bold name in the normal text colour, struck through. */
+.round-row.is-out .round-row-name { text-decoration: line-through; text-decoration-thickness: 1.5px; }
 /* "Out": a dark red, so rounds they did not make stand out from the heats they did. */
 .round-row.is-out .round-row-detail { color: var(--out-ink); font-weight: 600; }
 .row-chevron { flex: none; width: 16px; height: 16px; margin-right: -2px; fill: none; stroke: var(--muted); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; opacity: .7; }
