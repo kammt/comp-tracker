@@ -1,5 +1,5 @@
-const CACHE = 'comptracker-v32';
-const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icon.svg'];
+const CACHE = 'comptracker-v33';
+const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icon.svg', './apple-touch-icon.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
   // `reload` skips the browser's HTTP cache so the offline copy is the version just deployed.
