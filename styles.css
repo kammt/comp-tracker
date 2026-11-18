@@ -108,6 +108,10 @@ input:focus, textarea:focus { border-color: var(--mint-strong); box-shadow: 0 0 
 /* The native menu sits invisibly on top of the pill, so a tap opens the phone's own picker. 16px stops iOS zooming. */
 .sort-control select { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; font-size: 16px; opacity: 0; cursor: pointer; -webkit-appearance: none; appearance: none; }
 .sort-control:focus-within { outline: 2px solid var(--mint-strong); outline-offset: 2px; }
+.toolbar-icon-button { display: grid; place-items: center; flex: none; width: 30px; height: 30px; margin-left: 6px; padding: 0; color: var(--ink); background: linear-gradient(var(--glass-sheen), transparent 60%), var(--group); border: 0; border-radius: 50%; box-shadow: inset 0 1px 0 var(--glass-hi), 0 0 0 .5px var(--glass-edge), var(--shadow); transition: transform .25s var(--spring); }
+.toolbar-icon-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+.toolbar-icon-button:active { transform: scale(.9); }
+.toolbar-icon-button:focus-visible { outline: 2px solid var(--mint-strong); outline-offset: 2px; }
 .toolbar-button { flex: none; padding: 6px 4px 6px 10px; color: var(--mint-strong); background: transparent; border: 0; font-size: .82rem; font-weight: 700; }
 .toolbar-button:focus-visible { outline: 2px solid var(--mint-strong); outline-offset: 2px; border-radius: 6px; }
 
@@ -373,6 +377,33 @@ html, body { overscroll-behavior-y: contain; }
 .bulk-missing { color: var(--muted); font-size: .85rem; }
 .bulk-missing summary { cursor: pointer; font-weight: 700; }
 .bulk-missing p { margin: 6px 0 0; }
+/* Custom order: one slim row per person, dragged by the handle on the right. */
+.reorder-hint { margin: 0; }
+.inline-icon { width: 1.15em; height: 1.15em; vertical-align: -.25em; fill: none; stroke: var(--ink); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.reorder-list { position: relative; max-height: min(56vh, 520px); margin: 0; padding: 0; overflow-y: auto; overscroll-behavior: contain; list-style: none; background: var(--surface); border-radius: 14px; }
+.reorder-item { position: relative; display: flex; align-items: center; gap: 6px; min-height: 52px; padding: 2px 0 2px 8px; background: var(--surface); border-top: 1px solid var(--line); transition: transform .22s ease; }
+.reorder-item:first-child { border-top-color: transparent; }
+.reorder-rank { flex: none; width: 1.7em; color: var(--muted); font-size: .78rem; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.reorder-name { display: grid; flex: 1; min-width: 0; padding-left: 4px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.reorder-name small { color: var(--muted); font-size: .76rem; font-weight: 500; }
+.reorder-top, .reorder-handle { display: grid; place-items: center; flex: none; width: 44px; height: 44px; padding: 0; color: var(--muted); background: none; border: 0; border-radius: 12px; }
+.reorder-top svg, .reorder-handle svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.reorder-top { width: 38px; }
+.reorder-top:disabled { visibility: hidden; }
+.reorder-top:active { background: var(--row-active); }
+/* No browser scrolling or text selection may start from the handle: it is for dragging only. */
+.reorder-handle { color: var(--ink); cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.reorder-top:focus-visible, .reorder-handle:focus-visible { outline: 2px solid var(--mint-strong); outline-offset: -4px; }
+.reorder-list.is-sorting { -webkit-user-select: none; user-select: none; }
+.reorder-list.is-sorting .reorder-handle { cursor: grabbing; }
+.reorder-item.is-lifted, .reorder-item.is-settling { z-index: 2; background: var(--group); border-radius: 12px; border-top-color: transparent; box-shadow: 0 10px 28px rgba(23,35,31,.2), 0 0 0 .5px var(--glass-edge); }
+.reorder-item.is-lifted { transition: box-shadow .2s ease, border-radius .2s ease; }
+.reorder-item.is-settling { transition: transform .18s ease; }
+.reorder-list.no-anim .reorder-item { transition: none; }
+.reorder-item.is-moved { animation: reorder-flash 1s ease; }
+@keyframes reorder-flash { from { background: rgba(22,131,92,.22); } }
+@media (prefers-reduced-motion: reduce) { .reorder-item, .reorder-item.is-settling { transition: none; } .reorder-item.is-moved { animation: none; } }
+@media (prefers-color-scheme: dark) { .reorder-item.is-lifted, .reorder-item.is-settling { background: var(--chip); box-shadow: 0 10px 28px rgba(0,0,0,.6), 0 0 0 .5px rgba(255,255,255,.08); } }
 .name-search { display: grid; gap: 10px; }
 .name-search .field-note { margin: 0; }
 .suggestions { display: grid; overflow: hidden; background: var(--surface); border-radius: 10px; }

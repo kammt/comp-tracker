@@ -65,8 +65,10 @@
                 <option value="recent">Recently added</option>
                 <option value="name">Alphabetical</option>
                 <option value="changed">Most recent changes</option>
+                <option value="custom">Custom</option>
               </select>
             </label>
+            <button id="reorder-button" class="toolbar-icon-button" type="button" aria-label="Reorder the watch list" title="Reorder" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14M5 12h14M5 16h14"/></svg></button>
             <button id="collapse-all-button" class="toolbar-button" type="button">Collapse all</button>
           </div>
         </div>
@@ -166,6 +168,14 @@
         <p id="bulk-copy" class="dialog-copy" aria-live="polite"></p>
         <div id="bulk-list" class="bulk-list"></div>
         <div class="dialog-actions"><button id="bulk-reload" class="button button-secondary" type="button"><span id="bulk-reload-label">Reload competitor list</span></button><button id="bulk-submit" class="button button-primary" type="submit">Add people</button></div>
+      </form>
+    </dialog>
+    <dialog id="reorder-dialog" class="dialog">
+      <form method="dialog" class="stack-form">
+        <div class="dialog-heading"><div><p class="eyebrow">WATCH LIST</p><h2>Custom order</h2></div><button class="close-button" type="submit" aria-label="Close">×</button></div>
+        <p class="dialog-copy reorder-hint">Drag <svg class="inline-icon" viewBox="0 0 24 24" aria-label="the handle" role="img"><path d="M5 8h14M5 12h14M5 16h14"/></svg> to move someone, or tap <svg class="inline-icon" viewBox="0 0 24 24" aria-label="the arrow" role="img"><path d="M6 4h12M12 20V9M7 13l5-5 5 5"/></svg> to put them first.</p>
+        <ol id="reorder-list" class="reorder-list" aria-label="Watch list order"></ol>
+        <button class="button button-primary" type="submit">Done</button>
       </form>
     </dialog>
     <dialog id="event-id-dialog" class="dialog">

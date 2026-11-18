@@ -67,6 +67,9 @@ const elements = {
   sortSelect: document.querySelector('#sort-select'),
   sortLabel: document.querySelector('#sort-label'),
   collapseAll: document.querySelector('#collapse-all-button'),
+  reorderButton: document.querySelector('#reorder-button'),
+  reorderDialog: document.querySelector('#reorder-dialog'),
+  reorderList: document.querySelector('#reorder-list'),
   favouritesView: document.querySelector('#favourites-view'),
   favouritesRefresh: document.querySelector('#favourites-refresh-button'),
   favouritesStatus: document.querySelector('#favourites-status'),
@@ -117,7 +120,7 @@ function saveState() {
 
 // Display preferences outlive the event, so a reset keeps them.
 const PREFS_KEY = 'comptracker-prefs';
-const SORT_ORDERS = ['added', 'recent', 'name', 'changed'];
+const SORT_ORDERS = ['added', 'recent', 'name', 'changed', 'custom'];
 let prefs = readPrefs();
 
 function readPrefs() {
@@ -147,7 +150,7 @@ const EVENT_TABS = ['dashboard', 'rounds'];
 const HOME_TABS = ['setup', 'favourites'];
 
 // Short names for the sort button; the menu itself lists the full names.
-const SORT_LABELS = { added: 'Added', recent: 'Newest', name: 'A–Z', changed: 'Changed' };
+const SORT_LABELS = { added: 'Added', recent: 'Newest', name: 'A–Z', changed: 'Changed', custom: 'Custom' };
 
 // `tab` is the tab bar entry to highlight; the tab bar only shows on the top-level pages.
 function showView(view, tab = null) {
@@ -601,8 +604,20 @@ function sortedResults(results) {
     case 'name': return sorted.sort((a, b) => nameCollator.compare(a.name, b.name) || byAdded(a, b));
     // People whose info never changed follow, newest addition first.
     case 'changed': return sorted.sort((a, b) => (b.changedAt || '').localeCompare(a.changedAt || '') || byAdded(b, a));
+    case 'custom': {
+      const custom = new Map(customOrder().map((query, index) => [query, index]));
+      return sorted.sort((a, b) => (custom.get(a.query) ?? Infinity) - (custom.get(b.query) ?? Infinity));
+    }
     default: return sorted.sort(byAdded);
   }
+}
+
+// The order the user arranged by hand (`state.customOrder`, per event). People added since
+// follow at the end, in the order they were added.
+function customOrder() {
+  const watchList = state?.watchList || [];
+  const saved = (state?.customOrder || []).filter((query) => watchList.includes(query));
+  return [...saved, ...watchList.filter((query) => !saved.includes(query))];
 }
 
 function isCollapsed(query) {
@@ -617,6 +632,7 @@ function renderResults() {
   elements.listToolbar.hidden = results.length < 2;
   elements.sortSelect.value = sortOrder();
   elements.sortLabel.textContent = SORT_LABELS[sortOrder()];
+  elements.reorderButton.hidden = sortOrder() !== 'custom';
   updateCollapseAllButton();
   if (!results.length) {
     elements.results.innerHTML = '<div class="empty-state">No one on your watch list yet. Tap + to add a person.</div>';
@@ -1100,6 +1116,7 @@ function removePerson(query) {
   state.watchList = state.watchList.filter((item) => item !== query);
   state.results = (state.results || []).filter((result) => result.query !== query);
   state.collapsed = (state.collapsed || []).filter((item) => item !== query);
+  if (state.customOrder) state.customOrder = state.customOrder.filter((item) => item !== query);
   saveState();
   renderAll();
   setStatus(`${query} removed from the watch list.`);
@@ -1125,10 +1142,21 @@ elements.results.addEventListener('click', (event) => {
   elements.confirmDialog.showModal();
 });
 elements.sortSelect.addEventListener('change', () => {
-  prefs.sort = elements.sortSelect.value;
+  const next = elements.sortSelect.value;
+  // The first custom order starts from the order on screen, so picking Custom after A–Z means
+  // tweaking the alphabetical list rather than starting over. The editor opens straight away.
+  const firstCustom = next === 'custom' && state && !state.customOrder;
+  if (firstCustom) {
+    state.customOrder = sortedResults(state.results || []).map((participant) => participant.query);
+    state.customOrder = customOrder();
+    saveState();
+  }
+  prefs.sort = next;
   savePrefs();
   renderAll();
+  if (firstCustom && state.watchList.length > 1) openReorderDialog();
 });
+elements.reorderButton.addEventListener('click', openReorderDialog);
 elements.collapseAll.addEventListener('click', () => {
   setCollapsed(allCollapsed() ? [] : (state.results || []).map((participant) => participant.query));
 });
@@ -2062,6 +2090,198 @@ function refreshCurrentView() {
   return refreshInFlight || refreshResults();
 }
 
+// ---- Custom order: a compact list of names in a sheet, dragged by their handles ----
+// Cards on the watch list are tall once expanded, so dragging them would mean dragging across
+// screens. The sheet shows one slim row per person, so a dozen or more fit at once.
+
+const GRIP_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14M5 12h14M5 16h14"/></svg>';
+const TO_TOP_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12M12 20V9M7 13l5-5 5 5"/></svg>';
+
+function personName(query) {
+  const participant = (state?.results || []).find((result) => result.query === query);
+  return participant && participant.name !== query ? participant.name : `Bib ${query}`;
+}
+
+function openReorderDialog() {
+  if (!state) return;
+  elements.reorderList.innerHTML = customOrder().map((query) => {
+    const name = escapeHtml(personName(query));
+    return `<li class="reorder-item" data-query="${escapeHtml(query)}"><span class="reorder-rank"></span><span class="reorder-name">${name}<small>Bib ${escapeHtml(query)}</small></span><button class="reorder-top" type="button" data-move-top aria-label="Move ${name} to the top">${TO_TOP_ICON}</button><button class="reorder-handle" type="button" data-drag-handle>${GRIP_ICON}</button></li>`;
+  }).join('');
+  numberReorderItems();
+  elements.reorderDialog.showModal();
+  elements.reorderList.scrollTop = 0;
+}
+
+function numberReorderItems() {
+  const items = [...elements.reorderList.children];
+  items.forEach((item, index) => {
+    item.querySelector('.reorder-rank').textContent = index + 1;
+    item.querySelector('[data-move-top]').disabled = index === 0;
+    item.querySelector('[data-drag-handle]').setAttribute('aria-label', `Move ${personName(item.dataset.query)}, ${index + 1} of ${items.length}. Arrow keys move up and down.`);
+  });
+}
+
+// Every move is saved at once, so closing the sheet any way keeps it.
+function saveReorder() {
+  numberReorderItems();
+  state.customOrder = [...elements.reorderList.children].map((item) => item.dataset.query);
+  saveState();
+  renderAll();
+}
+
+// Moves rows in the DOM, then slides each from where it was to where it is now.
+function animateReorder(mutate) {
+  const items = [...elements.reorderList.children];
+  const before = new Map(items.map((item) => [item, item.getBoundingClientRect().top]));
+  mutate();
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  items.forEach((item) => {
+    const delta = before.get(item) - item.getBoundingClientRect().top;
+    if (!delta) return;
+    item.style.transition = 'none';
+    item.style.transform = `translateY(${delta}px)`;
+  });
+  elements.reorderList.getBoundingClientRect();
+  items.forEach((item) => {
+    item.style.transition = '';
+    item.style.transform = '';
+  });
+}
+
+function flashReorderItem(item) {
+  item.classList.remove('is-moved');
+  void item.offsetWidth;
+  item.classList.add('is-moved');
+}
+
+elements.reorderList.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-move-top]');
+  if (!button) return;
+  const item = button.closest('.reorder-item');
+  animateReorder(() => elements.reorderList.prepend(item));
+  flashReorderItem(item);
+  saveReorder();
+  // The button is now hidden on the first row; keep keyboard focus on the person moved.
+  item.querySelector('[data-drag-handle]').focus({ preventScroll: true });
+});
+
+elements.reorderList.addEventListener('keydown', (event) => {
+  const handle = event.target.closest('[data-drag-handle]');
+  if (!handle || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+  event.preventDefault();
+  const item = handle.closest('.reorder-item');
+  const neighbour = event.key === 'ArrowUp' ? item.previousElementSibling : item.nextElementSibling;
+  if (!neighbour) return;
+  animateReorder(() => (event.key === 'ArrowUp' ? neighbour.before(item) : neighbour.after(item)));
+  saveReorder();
+  handle.focus();
+});
+
+// Dragging a handle lifts its row; the rows it passes slide out of the way, and the list scrolls
+// by itself while the finger rests near its top or bottom edge.
+function setupReorderDrag() {
+  const list = elements.reorderList;
+  const EDGE = 56;
+  const MAX_SPEED = 16;
+  let drag = null;
+
+  const update = () => {
+    const { slots, from } = drag;
+    const self = slots[from];
+    const last = slots[slots.length - 1];
+    const moved = drag.y - drag.startY + list.scrollTop - drag.startScroll;
+    // The row stays within the list.
+    const offset = Math.min(Math.max(moved, -self.top), last.top + last.height - self.top - self.height);
+    drag.item.style.transform = `translateY(${offset}px) scale(1.03)`;
+    // A row gives way once the leading edge of the lifted row passes its middle.
+    const top = self.top + offset;
+    const bottom = top + self.height;
+    const middle = (slot) => slot.top + slot.height / 2;
+    drag.to = from
+      + slots.slice(from + 1).filter((slot) => middle(slot) < bottom).length
+      - slots.slice(0, from).filter((slot) => middle(slot) > top).length;
+    slots.forEach((slot, index) => {
+      if (index === from) return;
+      let shift = 0;
+      if (from < drag.to && index > from && index <= drag.to) shift = -self.height;
+      else if (drag.to < from && index >= drag.to && index < from) shift = self.height;
+      if (slot.shift === shift) return;
+      slot.shift = shift;
+      slot.item.style.transform = shift ? `translateY(${shift}px)` : '';
+    });
+  };
+
+  const autoScroll = () => {
+    if (!drag || drag.settling) return;
+    const rect = list.getBoundingClientRect();
+    let speed = 0;
+    if (drag.y < rect.top + EDGE) speed = -Math.min(1, (rect.top + EDGE - drag.y) / EDGE) * MAX_SPEED;
+    else if (drag.y > rect.bottom - EDGE) speed = Math.min(1, (drag.y - rect.bottom + EDGE) / EDGE) * MAX_SPEED;
+    if (speed) {
+      const before = list.scrollTop;
+      list.scrollTop += speed;
+      if (list.scrollTop !== before) update();
+    }
+    drag.frame = requestAnimationFrame(autoScroll);
+  };
+
+  list.addEventListener('pointerdown', (event) => {
+    const handle = event.target.closest('[data-drag-handle]');
+    if (!handle || drag || !event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    event.preventDefault();
+    const item = handle.closest('.reorder-item');
+    const items = [...list.children];
+    // Row positions within the scrolled content, so scrolling mid-drag does not move them.
+    const origin = list.getBoundingClientRect().top - list.scrollTop;
+    const slots = items.map((element) => {
+      const rect = element.getBoundingClientRect();
+      return { item: element, top: rect.top - origin, height: rect.height, shift: 0 };
+    });
+    handle.setPointerCapture(event.pointerId);
+    drag = { pointerId: event.pointerId, handle, item, slots, from: items.indexOf(item), to: items.indexOf(item), startY: event.clientY, y: event.clientY, startScroll: list.scrollTop, frame: 0, settling: false };
+    list.classList.add('is-sorting');
+    item.classList.add('is-lifted');
+    navigator.vibrate?.(8);
+    update();
+    drag.frame = requestAnimationFrame(autoScroll);
+  });
+
+  list.addEventListener('pointermove', (event) => {
+    if (!drag || drag.settling || event.pointerId !== drag.pointerId) return;
+    drag.y = event.clientY;
+    update();
+  });
+
+  const drop = (event) => {
+    if (!drag || drag.settling || event.pointerId !== drag.pointerId) return;
+    cancelAnimationFrame(drag.frame);
+    drag.settling = true;
+    const { item, slots, from, to } = drag;
+    // Glide into the gap the other rows opened, then make the move for real.
+    const offset = to > from
+      ? slots.slice(from + 1, to + 1).reduce((sum, slot) => sum + slot.height, 0)
+      : -slots.slice(to, from).reduce((sum, slot) => sum + slot.height, 0);
+    item.classList.remove('is-lifted');
+    item.classList.add('is-settling');
+    item.style.transform = offset ? `translateY(${offset}px)` : '';
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    setTimeout(() => {
+      list.classList.add('no-anim');
+      if (to > from) slots[to].item.after(item);
+      else if (to < from) slots[to].item.before(item);
+      slots.forEach((slot) => { slot.item.style.transform = ''; });
+      list.getBoundingClientRect();
+      list.classList.remove('no-anim', 'is-sorting');
+      item.classList.remove('is-settling');
+      drag = null;
+      if (to !== from) saveReorder();
+    }, reduce ? 0 : 180);
+  };
+  list.addEventListener('pointerup', drop);
+  list.addEventListener('pointercancel', drop);
+}
+
 // The touch gesture that owns the current drag, so a pull to refresh and a swipe on a card never run together.
 let activeGesture = null;
 
@@ -2372,6 +2592,7 @@ setupServiceWorker();
 route();
 setupPullToRefresh();
 setupSwipeToDelete();
+setupReorderDrag();
 preventZoom();
 // The setup page already loads the live events on its own.
 if (state && isUserReload()) refreshCurrentView();
