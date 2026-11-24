@@ -31,6 +31,15 @@ python3 -m http.server 8000
 
 Then open http://localhost:8000.
 
+## Tests
+The tests run the app in Chromium with [Playwright](https://playwright.dev) against a mock server (`tests/mock-server.mjs`) that serves the app and crafted scoring.dance and SwingPoints responses, so they never touch the real services. They run on every push in GitHub Actions. To run them locally (Node 20 or newer):
+
+```sh
+npm install
+npx playwright install chromium
+npm test
+```
+
 ## Caution
 - This entire project is vibe-coded. Use at your own risk.
 - All the traffic generated to scoring.dance is your responsibility.

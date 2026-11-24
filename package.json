@@ -1,0 +1,12 @@
+{
+  "name": "comp-tracker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "mock-server": "node tests/mock-server.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.1"
+  }
+}

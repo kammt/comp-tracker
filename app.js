@@ -1,6 +1,7 @@
 // All app state lives in one localStorage record so a reload never loses the event.
 const STORAGE_KEY = 'comptracker-state';
-const API_URL = 'https://scoring.dance/api/';
+// The tests (see tests/) point both APIs at a mock server; everyone else uses the real ones.
+const API_URL = window.COMPTRACKER_API_URL || 'https://scoring.dance/api/';
 
 const elements = {
   setup: document.querySelector('#setup-view'),
@@ -1623,7 +1624,7 @@ window.addEventListener('popstate', route);
 // ---- Favourites: the dancers you follow on SwingPoints ----
 // SwingPoints (the WSDC points app) has no public API. This is the GraphQL API its own app
 // uses; it accepts calls from any website (CORS), so CompTracker talks to it directly.
-const SWINGPOINTS_URL = 'https://swingpoints-prod.herokuapp.com/graphql';
+const SWINGPOINTS_URL = window.COMPTRACKER_SWINGPOINTS_URL || 'https://swingpoints-prod.herokuapp.com/graphql';
 const SWINGPOINTS_CLIENT_VERSION = '8.2.0';
 const SWINGPOINTS_PAGE_SIZE = 100;
 const FAVOURITES_KEY = 'comptracker-favourites';
